@@ -1,0 +1,1 @@
+- [ZP Sampark visual direction](zp-sampark.md) — Civic appointment portal uses India-inspired saffron, white, green, and navy; avoid purple/violet.

@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: citizen
+    description: Citizen booking and status operations
+  - name: office
+    description: CEO office queue and intelligence operations
 paths:
   /healthz:
     get:
@@ -24,6 +28,187 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /availability:
+    get:
+      operationId: getAvailability
+      tags: [citizen]
+      summary: Get appointment availability
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Available appointment slots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Availability"
+  /visits:
+    post:
+      operationId: createVisit
+      tags: [citizen]
+      summary: Register an appointment or walk-in visit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitInput"
+      responses:
+        "201":
+          description: Visit registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+  /visits/{token}:
+    get:
+      operationId: getVisitStatus
+      tags: [citizen]
+      summary: Get a visit token status
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Visit status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+        "404":
+          description: Token not found
+  /office/dashboard:
+    get:
+      operationId: getOfficeDashboard
+      tags: [office]
+      summary: Get CEO office dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /office/queue:
+    get:
+      operationId: getOfficeQueue
+      tags: [office]
+      summary: Get the live queue
+      responses:
+        "200":
+          description: Live queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QueueEntry"
+  /office/visits/{id}:
+    get:
+      operationId: getOfficeVisit
+      tags: [office]
+      summary: Get a visitor briefing
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Visitor briefing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+  /office/queue/{id}/action:
+    patch:
+      operationId: updateQueueAction
+      tags: [office]
+      summary: Apply a queue action
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueueActionInput"
+      responses:
+        "200":
+          description: Updated queue entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueEntry"
+  /office/visits/{id}/outcome:
+    post:
+      operationId: saveVisitOutcome
+      tags: [office]
+      summary: Save a meeting outcome
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutcomeInput"
+      responses:
+        "200":
+          description: Updated visit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+  /office/search:
+    get:
+      operationId: searchOfficeVisits
+      tags: [office]
+      summary: Search visitor records
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching visitor records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Visit"
+  /office/analytics:
+    get:
+      operationId: getOfficeAnalytics
+      tags: [office]
+      summary: Get visitor and outcome analytics
+      responses:
+        "200":
+          description: Analytics summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Analytics"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +218,185 @@ components:
           type: string
       required:
         - status
+    Availability:
+      type: object
+      required: [date, slots]
+      properties:
+        date: { type: string, format: date }
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppointmentSlot"
+    AppointmentSlot:
+      type: object
+      required: [id, label, available, remaining]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        available: { type: boolean }
+        remaining: { type: number }
+    VisitInput:
+      type: object
+      required:
+        - fullName
+        - mobile
+        - taluka
+        - location
+        - purpose
+        - category
+        - department
+        - description
+        - previouslyApproached
+        - visitType
+      properties:
+        fullName: { type: string, minLength: 2 }
+        mobile: { type: string, minLength: 10 }
+        taluka: { type: string }
+        location: { type: string }
+        organisation: { type: ["string", "null"] }
+        purpose: { type: string }
+        category: { type: string }
+        department: { type: string }
+        description: { type: string, maxLength: 250 }
+        previouslyApproached: { type: boolean }
+        previousDepartment: { type: ["string", "null"] }
+        previousDate: { type: ["string", "null"], format: date }
+        previousReference: { type: ["string", "null"] }
+        visitType:
+          type: string
+          enum: [appointment, walk_in]
+        appointmentDate: { type: ["string", "null"], format: date }
+        appointmentSlot: { type: ["string", "null"] }
+        priority:
+          type: string
+          enum: [normal, priority, official]
+          default: normal
+    Visit:
+      type: object
+      required:
+        - id
+        - token
+        - fullName
+        - mobile
+        - taluka
+        - location
+        - purpose
+        - category
+        - department
+        - description
+        - visitType
+        - priority
+        - status
+        - queuePosition
+        - estimatedWait
+        - registeredAt
+      properties:
+        id: { type: number }
+        token: { type: string }
+        fullName: { type: string }
+        mobile: { type: string }
+        taluka: { type: string }
+        location: { type: string }
+        organisation: { type: ["string", "null"] }
+        purpose: { type: string }
+        category: { type: string }
+        department: { type: string }
+        description: { type: string }
+        previouslyApproached: { type: boolean }
+        previousDepartment: { type: ["string", "null"] }
+        previousDate: { type: ["string", "null"], format: date }
+        previousReference: { type: ["string", "null"] }
+        visitType: { type: string }
+        appointmentDate: { type: ["string", "null"], format: date }
+        appointmentSlot: { type: ["string", "null"] }
+        priority: { type: string }
+        status: { type: string }
+        queuePosition: { type: number }
+        estimatedWait: { type: number }
+        registeredAt: { type: string, format: date-time }
+        outcome: { type: ["string", "null"] }
+        referredTo: { type: ["string", "null"] }
+        referenceNumber: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        followUpDate: { type: ["string", "null"], format: date }
+        previousVisits: { type: number }
+    QueueEntry:
+      type: object
+      required: [id, token, fullName, purpose, department, waitingMinutes, priority, status]
+      properties:
+        id: { type: number }
+        token: { type: string }
+        fullName: { type: string }
+        purpose: { type: string }
+        department: { type: string }
+        waitingMinutes: { type: number }
+        priority: { type: string }
+        status: { type: string }
+        location: { type: string }
+    DashboardSummary:
+      type: object
+      required: [registered, completed, waiting, pending, averageWait, nowMeeting, nextVisitors]
+      properties:
+        registered: { type: number }
+        completed: { type: number }
+        waiting: { type: number }
+        pending: { type: number }
+        averageWait: { type: number }
+        nowMeeting:
+          anyOf:
+            - $ref: "#/components/schemas/QueueEntry"
+            - type: "null"
+        nextVisitors:
+          type: array
+          items:
+            $ref: "#/components/schemas/QueueEntry"
+    QueueActionInput:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [call, call_next, hold, skip, check_in, no_show, complete]
+        reason: { type: ["string", "null"] }
+    OutcomeInput:
+      type: object
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: [resolved, referred, action_required, information_provided, rescheduled, rejected, follow_up]
+        referredTo: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        followUpDate: { type: ["string", "null"], format: date }
+    Analytics:
+      type: object
+      required: [today, weekly, monthly, unique, repeat, walkIns, appointments, noShowRate, categories, departments, outcomes]
+      properties:
+        today: { type: number }
+        weekly: { type: number }
+        monthly: { type: number }
+        unique: { type: number }
+        repeat: { type: number }
+        walkIns: { type: number }
+        appointments: { type: number }
+        noShowRate: { type: number }
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetricBreakdown"
+        departments:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetricBreakdown"
+        outcomes:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetricBreakdown"
+    MetricBreakdown:
+      type: object
+      required: [label, value, share]
+      properties:
+        label: { type: string }
+        value: { type: number }
+        share: { type: number }
 

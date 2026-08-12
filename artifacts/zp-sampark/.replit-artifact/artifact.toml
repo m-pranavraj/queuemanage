@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ZP Sampark"
+description = "A mobile-first appointment and visitor management portal for a Zilla Parishad CEO office, helping citizens book or join a walk-in queue and helping the office manage live visits, outcomes, and referrals."
+version = "1.0.0"
+id = "artifacts/zp-sampark"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25475
+
+[services.development]
+run = "pnpm --filter @workspace/zp-sampark run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/zp-sampark", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/zp-sampark/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25475"
+BASE_PATH = "/"
