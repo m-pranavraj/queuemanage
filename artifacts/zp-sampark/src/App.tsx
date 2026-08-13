@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from './translations';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, useParams, Router as WouterRouter } from 'wouter';
 import {
@@ -48,6 +49,7 @@ const dateLabel = (value?: string | null) => value ? new Date(`${value}T00:00:00
 const timeLabel = (value?: string | null) => value ? new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
 
 function Wordmark({ dark = false }: { dark?: boolean }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-3" data-testid="brand-wordmark">
       <div className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${dark ? 'border-white/20 bg-white/10' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'}`}>
@@ -55,8 +57,8 @@ function Wordmark({ dark = false }: { dark?: boolean }) {
         <span className="absolute bottom-1 left-2 right-2 h-0.5 rounded bg-[hsl(var(--primary))]" />
       </div>
       <div>
-        <p className={`display-serif text-base font-bold tracking-tight ${dark ? 'text-white' : 'text-[hsl(var(--foreground))]'}`}>ZP Sampark</p>
-        <p className={`mono-label mt-0.5 text-[9px] ${dark ? 'text-white/55' : 'text-[hsl(var(--muted-foreground))]'}`}>Citizen services desk</p>
+        <p className={`display-serif text-base font-bold tracking-tight ${dark ? 'text-white' : 'text-[hsl(var(--foreground))]'}`}>{t('zp_sampark')}</p>
+        <p className={`mono-label mt-0.5 text-[9px] ${dark ? 'text-white/55' : 'text-[hsl(var(--muted-foreground))]'}`}>{t('citizen_desk')}</p>
       </div>
     </div>
   );
@@ -65,25 +67,36 @@ function Wordmark({ dark = false }: { dark?: boolean }) {
 function PublicHeader() {
   const token = localStorage.getItem('zp_session_token');
   const role = localStorage.getItem('zp_user_role');
+  const { t, lang, changeLanguage } = useTranslation();
 
   return (
     <header className="border-b border-[hsl(var(--border))] bg-[hsl(var(--card))]/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <Link href="/" data-testid="link-home-brand"><Wordmark /></Link>
         <nav className="flex items-center gap-2">
+          <select 
+            value={lang} 
+            onChange={(e) => changeLanguage(e.target.value as any)}
+            className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-semibold outline-none hover:border-[hsl(var(--secondary))]"
+            data-testid="select-language"
+          >
+            <option value="en">English</option>
+            <option value="mr">मराठी</option>
+            <option value="hi">हिंदी</option>
+          </select>
           <Link href="/status/lookup" className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] sm:flex" data-testid="link-check-status">
-            <Ticket size={16} /> Check status
+            <Ticket size={16} /> {t('check_status')}
           </Link>
           <Link href="/qr" className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] px-3 py-2 text-sm font-semibold text-[hsl(var(--secondary))] transition hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))]/5" data-testid="link-public-qr">
-            <QrCode size={16} /> <span className="hidden sm:inline">QR entry</span>
+            <QrCode size={16} /> <span className="hidden sm:inline">{t('qr_entry')}</span>
           </Link>
           {token ? (
             <Link href="/office" className="flex items-center gap-2 rounded-full bg-[hsl(var(--primary))] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90" data-testid="link-staff-console">
-              Staff desk ({role})
+              {t('staff_desk')} ({role})
             </Link>
           ) : (
             <Link href="/login" className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] px-4 py-2 text-sm font-semibold text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))]" data-testid="link-staff-login">
-              Staff login
+              {t('staff_login')}
             </Link>
           )}
         </nav>
@@ -97,6 +110,7 @@ function OfficeShell({ children, title, eyebrow }: { children: React.ReactNode; 
   const [mobileNav, setMobileNav] = useState(false);
   const role = localStorage.getItem('zp_user_role') || '';
   const fullName = localStorage.getItem('zp_user_fullname') || 'PA';
+  const { t, lang, changeLanguage } = useTranslation();
 
   const logout = () => {
     localStorage.removeItem('zp_session_token');
@@ -108,11 +122,11 @@ function OfficeShell({ children, title, eyebrow }: { children: React.ReactNode; 
 
   // Define links visible to roles
   const allLinks = [
-    { href: '/office', label: 'Live desk', icon: ListChecks, roles: ['admin', 'ceo', 'reception'] },
-    { href: '/appointments', label: 'Appointments', icon: CalendarDays, roles: ['admin', 'ceo', 'reception'] },
-    { href: '/office/analytics', label: 'Analytics', icon: BarChart3, roles: ['admin', 'ceo'] },
-    { href: '/office/search', label: 'Visitor records', icon: FileSearch, roles: ['admin', 'ceo', 'reception', 'officer'] },
-    { href: '/admin', label: 'Admin settings', icon: Settings2, roles: ['admin'] },
+    { href: '/office', label: t('live_desk'), icon: ListChecks, roles: ['admin', 'ceo', 'reception'] },
+    { href: '/appointments', label: t('appointments'), icon: CalendarDays, roles: ['admin', 'ceo', 'reception'] },
+    { href: '/office/analytics', label: t('analytics'), icon: BarChart3, roles: ['admin', 'ceo'] },
+    { href: '/office/search', label: t('visitor_records'), icon: FileSearch, roles: ['admin', 'ceo', 'reception', 'officer'] },
+    { href: '/admin', label: t('admin_settings'), icon: Settings2, roles: ['admin'] },
   ];
 
   const visibleLinks = allLinks.filter(link => link.roles.includes(role));
@@ -141,10 +155,10 @@ function OfficeShell({ children, title, eyebrow }: { children: React.ReactNode; 
               <span className="text-xs font-semibold">{fullName}</span>
               <Badge className="bg-[hsl(var(--primary))]/80 text-[10px] text-white capitalize">{role}</Badge>
             </div>
-            <p className="mt-1 text-[10px] text-white/45">Authenticated Session</p>
+            <p className="mt-1 text-[10px] text-white/45">{t('authenticated_session')}</p>
           </div>
           <Button variant="outline" className="w-full justify-start gap-2 border-white/10 text-white hover:bg-white/10 hover:text-white" onClick={logout} data-testid="button-logout">
-            <LogOut size={16} /> Log out
+            <LogOut size={16} /> {t('logout')}
           </Button>
         </div>
       </aside>
@@ -154,10 +168,20 @@ function OfficeShell({ children, title, eyebrow }: { children: React.ReactNode; 
           <div className="flex items-center justify-between px-4 py-4 sm:px-8 lg:px-10">
             <div className="flex items-center gap-3">
               <button className="rounded-lg border border-[hsl(var(--border))] p-2 lg:hidden" onClick={() => setMobileNav(true)} data-testid="button-open-office-nav"><Menu size={18} /></button>
-              <div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">{eyebrow}</p><h1 className="display-serif mt-1 text-xl font-bold tracking-tight sm:text-2xl" data-testid="text-office-page-title">{title}</h1></div>
+              <div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">{t(eyebrow)}</p><h1 className="display-serif mt-1 text-xl font-bold tracking-tight sm:text-2xl" data-testid="text-office-page-title">{t(title)}</h1></div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="hidden text-right sm:block"><p className="text-xs font-semibold">Today, {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p><p className="text-[11px] text-[hsl(var(--muted-foreground))]">Sampark desk</p></div>
+              <select 
+                value={lang} 
+                onChange={(e) => changeLanguage(e.target.value as any)}
+                className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-semibold outline-none hover:border-[hsl(var(--secondary))]"
+                data-testid="select-language"
+              >
+                <option value="en">English</option>
+                <option value="mr">मराठी</option>
+                <option value="hi">हिंदी</option>
+              </select>
+              <div className="hidden text-right sm:block"><p className="text-xs font-semibold">Today, {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p><p className="text-[11px] text-[hsl(var(--muted-foreground))]">{t('zp_sampark')}</p></div>
               <div className="grid h-9 w-9 place-items-center rounded-full bg-[hsl(var(--secondary))] text-xs font-bold text-white uppercase" data-testid="avatar-office-user">{fullName.slice(0, 2)}</div>
             </div>
           </div>
@@ -221,6 +245,7 @@ function ProtectedRoute({ path, component: Component, allowedRoles }: { path: st
 // ---------------------------------------------------------------------------
 
 function Home() {
+  const { t } = useTranslation();
   return (
     <div className="min-h-[100dvh] bg-[hsl(var(--background))]">
       <PublicHeader />
@@ -229,43 +254,44 @@ function Home() {
         <div className="absolute -right-10 top-28 h-44 w-44 rounded-full border border-[hsl(var(--secondary))]/20" />
         <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pb-14 pt-14 sm:px-6 sm:pb-20 sm:pt-24 lg:grid-cols-[1.1fr_.9fr] lg:items-center">
           <div className="animate-rise">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--primary))]/25 bg-[hsl(var(--primary))]/8 px-3 py-1.5 text-xs font-bold text-[hsl(var(--secondary))]" data-testid="status-civic-service"><span className="h-2 w-2 rounded-full bg-[hsl(var(--secondary))]" /> A public service of the Zilla Parishad</div>
-            <h1 className="display-serif mt-6 max-w-2xl text-4xl font-bold leading-[1.12] tracking-[-.04em] sm:text-6xl">Your matter.<br /><span className="text-[hsl(var(--primary))]">A clear next step.</span></h1>
-            <p className="mt-6 max-w-xl text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">ZP Sampark helps citizens request a meeting with the Chief Executive Officer's office, receive a token, and follow its progress without uncertainty.</p>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--primary))]/25 bg-[hsl(var(--primary))]/8 px-3 py-1.5 text-xs font-bold text-[hsl(var(--secondary))]" data-testid="status-civic-service"><span className="h-2 w-2 rounded-full bg-[hsl(var(--secondary))]" /> {t('public_service')}</div>
+            <h1 className="display-serif mt-6 max-w-2xl text-4xl font-bold leading-[1.12] tracking-[-.04em] sm:text-6xl">{t('hero_title')}<br /><span className="text-[hsl(var(--primary))]">{t('hero_subtitle')}</span></h1>
+            <p className="mt-6 max-w-xl text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">{t('hero_desc')}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/book" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 text-sm font-bold text-white shadow-lg shadow-[hsl(var(--primary))]/20 transition hover:-translate-y-0.5" data-testid="link-start-registration">Start a registration <ArrowRight size={17} /></Link>
-              <Link href="/status/lookup" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 text-sm font-bold text-[hsl(var(--secondary))] transition hover:bg-[hsl(var(--muted))]" data-testid="link-track-token">Track an existing token <Ticket size={17} /></Link>
+              <Link href="/book" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 text-sm font-bold text-white shadow-lg shadow-[hsl(var(--primary))]/20 transition hover:-translate-y-0.5" data-testid="link-start-registration">{t('start_registration')} <ArrowRight size={17} /></Link>
+              <Link href="/status/lookup" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 text-sm font-bold text-[hsl(var(--secondary))] transition hover:bg-[hsl(var(--muted))]" data-testid="link-track-token">{t('track_token')} <Ticket size={17} /></Link>
             </div>
           </div>
           <div className="relative animate-rise [animation-delay:120ms]">
             <Card className="paper-shadow overflow-hidden border-0 bg-[hsl(var(--secondary))] text-white">
-              <div className="flex items-center justify-between border-b border-white/12 px-5 py-4"><div><p className="mono-label text-[9px] text-white/50">Today's journey</p><p className="mt-1 text-sm font-semibold">From entry to outcome</p></div><div className="grid h-9 w-9 place-items-center rounded-lg bg-white/10"><Activity size={17} className="text-[hsl(var(--primary))]" /></div></div>
+              <div className="flex items-center justify-between border-b border-white/12 px-5 py-4"><div><p className="mono-label text-[9px] text-white/50">{t('today_journey')}</p><p className="mt-1 text-sm font-semibold">{t('journey_subtitle')}</p></div><div className="grid h-9 w-9 place-items-center rounded-lg bg-white/10"><Activity size={17} className="text-[hsl(var(--primary))]" /></div></div>
               <div className="space-y-0 px-5 py-5">
-                {[['01', 'Register your mobile', 'Verify quickly via one-time code'], ['02', 'Provide visit details', 'Explain your matter to the office'], ['03', 'Select schedule & priority', 'Select appointment or walk-in queue'], ['04', 'Receive token & status', 'Follow live updates on screen']].map(([number, title, text], i) => (
+                {[['01', 'step1_title', 'step1_desc'], ['02', 'step2_title', 'step2_desc'], ['03', 'step3_title', 'step3_desc'], ['04', 'step4_title', 'step4_desc']].map(([number, titleKey, textKey], i) => (
                   <div className="relative flex gap-4 pb-7 last:pb-0" key={number} data-testid={`card-journey-step-${i + 1}`}>
                     {i < 3 && <span className="absolute left-[15px] top-8 h-full w-px bg-white/15" />}
                     <span className="relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[hsl(var(--primary))]/60 bg-[hsl(var(--secondary))] font-mono text-[10px] font-bold text-[hsl(var(--primary))]">{number}</span>
-                    <div><p className="font-semibold">{title}</p><p className="mt-1 text-sm text-white/55">{text}</p></div>
+                    <div><p className="font-semibold">{t(titleKey)}</p><p className="mt-1 text-sm text-white/55">{t(textKey)}</p></div>
                   </div>
                 ))}
               </div>
-              <div className="flex items-center gap-3 bg-white/7 px-5 py-4 text-xs text-white/60"><ShieldCheck size={15} className="text-[hsl(var(--primary))]" /> Your information is handled by the office with care.</div>
+              <div className="flex items-center gap-3 bg-white/7 px-5 py-4 text-xs text-white/60"><ShieldCheck size={15} className="text-[hsl(var(--primary))]" /> {t('info_care')}</div>
             </Card>
           </div>
         </div>
       </section>
       <section className="mx-auto grid max-w-6xl gap-4 px-4 py-10 sm:grid-cols-3 sm:px-6 sm:py-14">
-        {[{ icon: Clock3, title: 'Know before you arrive', text: 'Choose an available appointment slot or register as a walk-in.' }, { icon: MapPin, title: 'Local context matters', text: 'Share your taluka and location so the office can understand your request.' }, { icon: CheckCircle2, title: 'A documented outcome', text: 'Every visit closes with a recorded next step, referral, or resolution.' }].map(({ icon: Icon, title, text }, i) => <div key={title} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5" data-testid={`card-service-promise-${i + 1}`}><Icon size={21} className={i === 1 ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--primary))]'} /><h2 className="mt-5 font-serif text-lg font-bold">{title}</h2><p className="mt-2 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{text}</p></div>)}
+        {[{ icon: Clock3, title: t('promise1_title'), text: t('promise1_desc') }, { icon: MapPin, title: t('promise2_title'), text: t('promise2_desc') }, { icon: CheckCircle2, title: t('promise3_title'), text: t('promise3_desc') }].map(({ icon: Icon, title, text }, i) => <div key={title} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5" data-testid={`card-service-promise-${i + 1}`}><Icon size={21} className={i === 1 ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--primary))]'} /><h2 className="mt-5 font-serif text-lg font-bold">{title}</h2><p className="mt-2 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{text}</p></div>)}
       </section>
-      <footer className="border-t border-[hsl(var(--border))] px-4 py-6 sm:px-6"><div className="mx-auto flex max-w-6xl flex-col gap-2 text-xs text-[hsl(var(--muted-foreground))] sm:flex-row sm:items-center sm:justify-between"><span data-testid="text-footer-office">Office of the Chief Executive Officer · Zilla Parishad</span><span data-testid="text-footer-help">For assistance, please visit the Sampark help desk.</span></div></footer>
+      <footer className="border-t border-[hsl(var(--border))] px-4 py-6 sm:px-6"><div className="mx-auto flex max-w-6xl flex-col gap-2 text-xs text-[hsl(var(--muted-foreground))] sm:flex-row sm:items-center sm:justify-between"><span data-testid="text-footer-office">{t('footer_office')}</span><span data-testid="text-footer-help">{t('footer_help')}</span></div></footer>
     </div>
   );
 }
 
 function QRPage() {
+  const { t } = useTranslation();
   const bookingUrl = new URL(`${import.meta.env.BASE_URL.replace(/\/$/, '')}/book`, window.location.origin).toString();
   const qrImageUrl = `https://quickchart.io/qr?size=360&margin=2&text=${encodeURIComponent(bookingUrl)}`;
-  return <div className="min-h-[100dvh] bg-[hsl(var(--background))]"><PublicHeader /><main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16"><Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-qr-back"><ChevronRight className="rotate-180" size={15} /> Back to Sampark</Link><div className="mt-8 grid gap-8 md:grid-cols-[.9fr_1.1fr] md:items-center"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Public entry point</p><h1 className="display-serif mt-2 text-3xl font-bold sm:text-4xl">Scan to register a visit.</h1><p className="mt-4 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Place this QR at the Zilla Parishad entrance, reception, CEO office, or in official communications. It opens the public registration form—no app download required.</p><div className="mt-6 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))]">Exposed registration URL</p><p className="mt-2 break-all font-mono text-xs font-semibold" data-testid="text-exposed-booking-url">{bookingUrl}</p></div><div className="mt-5 flex flex-wrap gap-3"><Button onClick={() => window.print()} data-testid="button-print-qr"><Printer size={16} /> Print QR</Button><a href={bookingUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-md border border-[hsl(var(--border))] px-4 text-sm font-semibold text-[hsl(var(--secondary))]" data-testid="link-open-booking-url"><ExternalLink size={16} /> Open registration</a></div></div><Card className="paper-shadow border-0 p-6 text-center sm:p-8"><div className="mx-auto max-w-[360px] rounded-2xl bg-white p-3"><img src={qrImageUrl} alt={`QR code for ${bookingUrl}`} className="mx-auto aspect-square w-full" data-testid="img-registration-qr" /></div><p className="mt-5 font-serif text-lg font-bold">ZP Sampark registration</p><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">A public link for citizens and visitors</p></Card></div></main></div>;
+  return <div className="min-h-[100dvh] bg-[hsl(var(--background))]"><PublicHeader /><main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16"><Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-qr-back"><ChevronRight className="rotate-180" size={15} /> {t('back_to_sampark')}</Link><div className="mt-8 grid gap-8 md:grid-cols-[.9fr_1.1fr] md:items-center"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">{t('qr_entry')}</p><h1 className="display-serif mt-2 text-3xl font-bold sm:text-4xl">{t('scan_register_title')}</h1><p className="mt-4 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{t('scan_register_desc')}</p><div className="mt-6 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))]">{t('exposed_url')}</p><p className="mt-2 break-all font-mono text-xs font-semibold" data-testid="text-exposed-booking-url">{bookingUrl}</p></div><div className="mt-5 flex flex-wrap gap-3"><Button onClick={() => window.print()} data-testid="button-print-qr"><Printer size={16} /> {t('print_qr')}</Button><a href={bookingUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-md border border-[hsl(var(--border))] px-4 text-sm font-semibold text-[hsl(var(--secondary))]" data-testid="link-open-booking-url"><ExternalLink size={16} /> {t('open_reg')}</a></div></div><Card className="paper-shadow border-0 p-6 text-center sm:p-8"><div className="mx-auto max-w-[360px] rounded-2xl bg-white p-3"><img src={qrImageUrl} alt={`QR code for ${bookingUrl}`} className="mx-auto aspect-square w-full" data-testid="img-registration-qr" /></div><p className="mt-5 font-serif text-lg font-bold">{t('zp_sampark')} {t('wizard_title')}</p><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{t('public_link_desc')}</p></Card></div></main></div>;
 }
 
 type BookState = Record<string, string | boolean | number>;
@@ -282,6 +308,7 @@ function Field({ label, name, value, onChange, placeholder, type = 'text', requi
 }
 
 function Book() {
+  const { t } = useTranslation();
   const [step, setStep] = useState(1); // 1: Details, 2: Visit Plan, 3: Review
   const [form, setForm] = useState<BookState>(bookDefaults);
   const [created, setCreated] = useState<{ token: string; id: number } | null>(null);
@@ -394,17 +421,17 @@ function Book() {
     );
   }
 
-  const stepsList = ['Your details', 'Visit plan', 'Confirm'];
+  const stepsList = [t('step_details'), t('step_plan'), t('step_confirm')];
   
   return (
     <div className="min-h-[100dvh] bg-[hsl(var(--background))]">
       <PublicHeader />
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
         <div className="mb-8">
-          <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-book-back"><ChevronRight className="rotate-180" size={15} /> Back to Home</Link>
-          <p className="mono-label mt-8 text-[10px] text-[hsl(var(--primary))] font-bold">New registration</p>
-          <h1 className="display-serif mt-2 text-3xl font-bold sm:text-4xl">Let us understand your visit.</h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">A few details help the office prepare. Your mobile number is used to look up and track your token status.</p>
+          <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-book-back"><ChevronRight className="rotate-180" size={15} /> {t('back_to_home')}</Link>
+          <p className="mono-label mt-8 text-[10px] text-[hsl(var(--primary))] font-bold">{t('wizard_title')}</p>
+          <h1 className="display-serif mt-2 text-3xl font-bold sm:text-4xl">{t('let_us_understand')}</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{t('wizard_subtitle')}</p>
         </div>
 
         <div className="mb-7 flex items-center gap-2">
@@ -421,101 +448,73 @@ function Book() {
           {step === 1 && (
             <div className="space-y-6 animate-rise">
               <div>
-                <h2 className="font-serif text-xl font-bold">Provide visit details</h2>
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Please supply personal and matter details for the CEO briefing card.</p>
+                <h2 className="font-serif text-xl font-bold">{t('step_details')}</h2>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{t('provide_details_desc')}</p>
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Full name" name="fullName" value={String(form.fullName)} onChange={setValue} placeholder="Visitor's name" required />
-                <Field label="Mobile number" name="mobile" value={String(form.mobile)} onChange={setValue} placeholder="10-digit mobile number" type="tel" required />
+                <Field label={t('full_name')} name="fullName" value={String(form.fullName)} onChange={setValue} placeholder="Visitor's name" required />
+                <Field label={t('mobile_number')} name="mobile" value={String(form.mobile)} onChange={setValue} placeholder="10-digit mobile number" type="tel" required />
                 <div className="space-y-2">
-                  <Label htmlFor="taluka" className="text-sm font-semibold">Taluka</Label>
+                  <Label htmlFor="taluka" className="text-sm font-semibold">{t('taluka')}</Label>
                   <select id="taluka" name="taluka" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.taluka)} onChange={(e) => setValue('taluka', e.target.value)} data-testid="select-taluka">
-                    <option>Baramati</option>
-                    <option>Indapur</option>
-                    <option>Daund</option>
-                    <option>Shirur</option>
-                    <option>Purandar</option>
-                    <option>Bhor</option>
-                    <option>Velhe</option>
-                    <option>Maval</option>
-                    <option>Mulshi</option>
-                    <option>Haveli</option>
-                    <option>Khed</option>
-                    <option>Ambegaon</option>
-                    <option>Junnar</option>
+                    {['Baramati', 'Indapur', 'Daund', 'Shirur', 'Purandar', 'Bhor', 'Velhe', 'Maval', 'Mulshi', 'Haveli', 'Khed', 'Ambegaon', 'Junnar'].map((name) => (
+                      <option key={name} value={name}>{t(name)}</option>
+                    ))}
                   </select>
                 </div>
-                <Field label="Village / Town / Ward" name="location" value={String(form.location)} onChange={setValue} placeholder="Where do you live?" required />
-                <Field label="Organisation (optional)" name="organisation" value={String(form.organisation)} onChange={setValue} placeholder="If representing an entity" />
+                <Field label={t('village')} name="location" value={String(form.location)} onChange={setValue} placeholder="Where do you live?" required />
+                <Field label={t('org')} name="organisation" value={String(form.organisation)} onChange={setValue} placeholder="If representing an entity" />
               </div>
 
               <div>
-                <Label htmlFor="purpose" className="text-sm font-semibold">Subject / Purpose of Visit<span className="ml-1 text-[hsl(var(--primary))]*">*</span></Label>
+                <Label htmlFor="purpose" className="text-sm font-semibold">{t('purpose')}<span className="ml-1 text-[hsl(var(--primary))]*">*</span></Label>
                 <Input id="purpose" name="purpose" value={String(form.purpose)} onChange={(e) => setValue('purpose', e.target.value)} placeholder="Brief title of your request" className="mt-2" required data-testid="input-purpose" />
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="category" className="text-sm font-semibold">Grievance Category</Label>
+                  <Label htmlFor="category" className="text-sm font-semibold">{t('wizard_title')}</Label>
                   <select id="category" name="category" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.category)} onChange={(e) => setValue('category', e.target.value)} data-testid="select-category">
-                    <option>Grievance</option>
-                    <option>Government Scheme</option>
-                    <option>Education</option>
-                    <option>Health</option>
-                    <option>Water / Sanitation</option>
-                    <option>Rural Development</option>
-                    <option>Employment / Skill Development</option>
-                    <option>Infrastructure / Roads</option>
-                    <option>SHG / Livelihood</option>
-                    <option>Agriculture</option>
-                    <option>Administrative Matter</option>
-                    <option>Proposal / Partnership</option>
-                    <option>Personal Appointment</option>
-                    <option>Other</option>
+                    {['Grievance', 'Government Scheme', 'Education', 'Health', 'Water / Sanitation', 'Rural Development', 'Employment / Skill Development', 'Infrastructure / Roads', 'SHG / Livelihood', 'Agriculture', 'Administrative Matter', 'Proposal / Partnership', 'Personal Appointment', 'Other'].map((cat) => (
+                      <option key={cat} value={cat}>{t(cat)}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="department" className="text-sm font-semibold">Concerned Department</Label>
+                  <Label htmlFor="department" className="text-sm font-semibold">{t('department')}</Label>
                   <select id="department" name="department" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.department)} onChange={(e) => setValue('department', e.target.value)} data-testid="select-department">
-                    <option>General Administration</option>
-                    <option>Rural Development</option>
-                    <option>Revenue</option>
-                    <option>Education</option>
-                    <option>Health</option>
-                    <option>Water & Sanitation</option>
-                    <option>Women & Child Development</option>
-                    <option>Agriculture</option>
-                    <option>Finance</option>
-                    <option>Works (Roads & Infra)</option>
+                    {['General Administration', 'Rural Development', 'Revenue', 'Education', 'Health', 'Water & Sanitation', 'Women & Child Development', 'Agriculture', 'Finance', 'Works (Roads & Infra)'].map((dept) => (
+                      <option key={dept} value={dept}>{t(dept)}</option>
+                    ))}
                   </select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description" className="text-sm font-semibold">Briefly explain your request (Max 250 characters)<span className="ml-1 text-[hsl(var(--primary))]*">*</span></Label>
-                <Textarea id="description" value={String(form.description)} onChange={(e) => setValue('description', e.target.value)} maxLength={250} placeholder="Provide short details for the CEO card summary..." required data-testid="textarea-description" />
+                <Label htmlFor="description" className="text-sm font-semibold">{t('explain_request_desc')}<span className="ml-1 text-[hsl(var(--primary))]*">*</span></Label>
+                <Textarea id="description" value={String(form.description)} onChange={(e) => setValue('description', e.target.value)} maxLength={250} placeholder={t('explain_request_placeholder')} required data-testid="textarea-description" />
                 <p className="text-right text-xs text-[hsl(var(--muted-foreground))]">{String(form.description).length}/250</p>
               </div>
 
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-4">
                 <input type="checkbox" checked={Boolean(form.previouslyApproached)} onChange={(e) => setValue('previouslyApproached', e.target.checked)} className="mt-1 h-4 w-4 accent-[hsl(var(--primary))]" data-testid="input-previously-approached" />
                 <span>
-                  <span className="block text-sm font-semibold">Have you approached the concerned department earlier?</span>
-                  <span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">This helps the CEO trace past files and officers involved.</span>
+                  <span className="block text-sm font-semibold">{t('approached_before')}</span>
+                  <span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{t('approached_dept_desc')}</span>
                 </span>
               </label>
 
               {Boolean(form.previouslyApproached) && (
                 <div className="grid gap-5 rounded-xl bg-[hsl(var(--muted))]/60 p-4 sm:grid-cols-3">
-                  <Field label="Department Officer" name="previousDepartment" value={String(form.previousDepartment)} onChange={setValue} placeholder="Name of officer" />
-                  <Field label="Previous Date" name="previousDate" value={String(form.previousDate)} onChange={setValue} type="date" />
-                  <Field label="Reference / Application ID" name="previousReference" value={String(form.previousReference)} onChange={setValue} placeholder="e.g. ZP/REVENUE/2026/12" />
+                  <Field label={t('dept_officer')} name="previousDepartment" value={String(form.previousDepartment)} onChange={setValue} placeholder="Name of officer" />
+                  <Field label={t('prev_date')} name="previousDate" value={String(form.previousDate)} onChange={setValue} type="date" />
+                  <Field label={t('ref_id')} name="previousReference" value={String(form.previousReference)} onChange={setValue} placeholder="e.g. ZP/REVENUE/2026/12" />
                 </div>
               )}
 
               <div className="flex justify-end gap-3">
-                <Link href="/" className="inline-flex h-10 items-center justify-center rounded-md border border-[hsl(var(--border))] px-4 text-sm font-semibold text-[hsl(var(--secondary))] transition hover:bg-[hsl(var(--muted))]">Cancel</Link>
-                <Button type="button" onClick={() => setStep(2)} disabled={!form.fullName || !form.mobile || String(form.mobile).length < 10 || !form.location || !form.purpose || !form.description} data-testid="button-next-visit-plan">Continue <ArrowRight size={16} /></Button>
+                <Link href="/" className="inline-flex h-10 items-center justify-center rounded-md border border-[hsl(var(--border))] px-4 text-sm font-semibold text-[hsl(var(--secondary))] transition hover:bg-[hsl(var(--muted))]">{t('cancel')}</Link>
+                <Button type="button" onClick={() => setStep(2)} disabled={!form.fullName || !form.mobile || String(form.mobile).length < 10 || !form.location || !form.purpose || !form.description} data-testid="button-next-visit-plan">{t('continue')} <ArrowRight size={16} /></Button>
               </div>
             </div>
           )}
@@ -527,8 +526,8 @@ function Book() {
                 <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Choose to book an appointment slot or enter the walk-in queue today.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                {[{ value: 'appointment', title: 'Book an Appointment', text: 'Secure a date and consecutive 5-minute slots.' },
-                  { value: 'walk_in', title: 'Register as a Walk-in', text: 'Register in the live token queue at the office.' }].map((item) => (
+                {[{ value: 'appointment', title: t('book_appointment_title'), text: t('book_appointment_desc') },
+                  { value: 'walk_in', title: t('register_walkin_title'), text: t('register_walkin_desc') }].map((item) => (
                   <button type="button" key={item.value} onClick={() => setValue('visitType', item.value)} className={`rounded-xl border p-4 text-left transition ${form.visitType === item.value ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/7 ring-1 ring-[hsl(var(--primary))]' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}`} data-testid={`button-visit-type-${item.value}`}>
                     <div className="flex items-center justify-between"><span className="font-semibold text-sm">{item.title}</span>{form.visitType === item.value && <CheckCircle2 size={17} className="text-[hsl(var(--primary))]" />}</div>
                     <p className="mt-1 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{item.text}</p>
@@ -540,23 +539,23 @@ function Book() {
                 <div className="rounded-2xl bg-[hsl(var(--muted))]/65 p-4 sm:p-5 space-y-5 animate-rise">
                   <div className="grid gap-5 sm:grid-cols-[200px_1fr]">
                     <div className="space-y-3">
-                      <Label htmlFor="appointmentDate" className="text-sm font-semibold">Preferred date</Label>
+                      <Label htmlFor="appointmentDate" className="text-sm font-semibold">{t('preferred_date')}</Label>
                       <Input id="appointmentDate" type="date" min={today()} value={String(form.appointmentDate)} onChange={(e) => { setValue('appointmentDate', e.target.value); setDate(e.target.value); }} data-testid="input-appointment-date" />
 
-                      <Label htmlFor="appointmentDuration" className="text-sm font-semibold mt-4 block">Meeting Duration</Label>
+                      <Label htmlFor="appointmentDuration" className="text-sm font-semibold mt-4 block">{t('duration')}</Label>
                       <select id="appointmentDuration" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={Number(form.appointmentDuration)} onChange={(e) => { setValue('appointmentDuration', Number(e.target.value)); setValue('appointmentSlot', ''); }} data-testid="select-duration">
-                        <option value={5}>5 Minutes (1 slot)</option>
-                        <option value={10}>10 Minutes (2 slots)</option>
-                        <option value={15}>15 Minutes (3 slots max)</option>
+                        <option value={5}>5 {t('minutes')} (1 slot)</option>
+                        <option value={10}>10 {t('minutes')} (2 slots)</option>
+                        <option value={15}>15 {t('minutes')} (3 slots max)</option>
                       </select>
                     </div>
 
                     <div>
-                      <Label className="text-sm font-semibold">Available slots ({form.appointmentDuration} mins)</Label>
+                      <Label className="text-sm font-semibold">{t('available_slots')} ({form.appointmentDuration} {t('minutes')})</Label>
                       {availability.isLoading ? (
                         <div className="mt-3 grid grid-cols-2 gap-2"><LoadingBlock lines={1} /><LoadingBlock lines={1} /></div>
                       ) : availability.isError ? (
-                        <p className="mt-3 text-sm text-[hsl(var(--destructive))]">Slots unavailable. You can register as a walk-in.</p>
+                        <p className="mt-3 text-sm text-[hsl(var(--destructive))]">{t('slots_unavailable')}</p>
                       ) : (
                         <div className="mt-3 grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                           {getFilteredSlots().map((slot) => (
@@ -573,12 +572,12 @@ function Book() {
               )}
 
               <div>
-                <Label className="text-sm font-semibold">Priority status (Manually selected or automatically audited)</Label>
+                <Label className="text-sm font-semibold">{t('priority_status_audited')}</Label>
                 <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                  {[{ value: 'normal', label: 'Standard', text: 'Standard queue' },
-                    { value: 'priority', label: 'Priority', text: 'Urgent citizen concern' },
-                    { value: 'official', label: 'Official', text: 'Elected reps / officers' },
-                    { value: 'vvip', label: '🌟 VVIP', text: 'High dignitary status' }].map((item) => (
+                  {[{ value: 'normal', label: t('normal'), text: t('priority_normal_desc') },
+                    { value: 'priority', label: t('priority_level'), text: t('priority_level_desc') },
+                    { value: 'official', label: t('official'), text: t('priority_official_desc') },
+                    { value: 'vvip', label: t('vvip'), text: t('priority_vvip_desc') }].map((item) => (
                     <button type="button" key={item.value} onClick={() => setValue('priority', item.value)} className={`rounded-xl border p-3 text-left transition ${form.priority === item.value ? 'border-[hsl(var(--secondary))] bg-[hsl(var(--secondary))]/8' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}`} data-testid={`button-priority-${item.value}`}>
                       <span className="block text-sm font-semibold">{item.label}</span>
                       <span className="mt-1 block text-[10px] text-[hsl(var(--muted-foreground))]">{item.text}</span>
@@ -588,8 +587,8 @@ function Book() {
               </div>
 
               <div className="flex justify-between">
-                <Button type="button" variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button type="button" onClick={() => setStep(3)} disabled={form.visitType === 'appointment' && !form.appointmentSlot} data-testid="button-next-confirm">Review registration <ArrowRight size={16} /></Button>
+                <Button type="button" variant="outline" onClick={() => setStep(1)}>{t('prev')}</Button>
+                <Button type="button" onClick={() => setStep(3)} disabled={form.visitType === 'appointment' && !form.appointmentSlot} data-testid="button-next-confirm">{t('review_reg')} <ArrowRight size={16} /></Button>
               </div>
             </div>
           )}
@@ -597,22 +596,22 @@ function Book() {
           {step === 3 && (
             <form onSubmit={submit} className="space-y-6 animate-rise" data-testid="form-visit-registration">
               <div>
-                <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Final check</p>
-                <h2 className="display-serif mt-2 text-2xl font-bold">Please review your details</h2>
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Ensure everything is correct. The CEO briefing card is generated directly from this form.</p>
+                <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">{t('final_check')}</p>
+                <h2 className="display-serif mt-2 text-2xl font-bold">{t('please_review')}</h2>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{t('ensure_correct')}</p>
               </div>
 
               <div className="divide-y divide-[hsl(var(--border))] rounded-xl border border-[hsl(var(--border))]">
                 {[
-                  ['Visitor Name', form.fullName],
-                  ['Mobile number', form.mobile],
-                  ['Taluka / Location', `${form.taluka} / ${form.location}`],
-                  ['Concerned Dept.', form.department],
-                  ['Visit Category', form.category],
-                  ['Subject / Purpose', form.purpose],
-                  ['Priority Level', form.priority],
-                  ['Visit Type', form.visitType === 'appointment' ? `Appointment · ${dateLabel(String(form.appointmentDate))}` : 'Walk-in Today'],
-                  ['Duration / Time', form.visitType === 'appointment' ? `${form.appointmentDuration} min meeting at ${availability.data?.slots.find((slot) => slot.id === form.appointmentSlot)?.label ?? 'Selected slot'}` : 'Live Queue (Immediate check-in)'],
+                  [t('full_name'), form.fullName],
+                  [t('mobile_number'), form.mobile],
+                  [`${t('taluka')} / ${t('village')}`, `${t(String(form.taluka))} / ${form.location}`],
+                  [t('department'), t(String(form.department))],
+                  [t('wizard_title'), t(String(form.category))],
+                  [t('purpose'), form.purpose],
+                  [t('priority'), t(String(form.priority))],
+                  [t('visit_type'), form.visitType === 'appointment' ? `${t('appointment')} · ${dateLabel(String(form.appointmentDate))}` : t('walkin')],
+                  [t('duration'), form.visitType === 'appointment' ? `${form.appointmentDuration} ${t('minutes')} @ ${availability.data?.slots.find((slot) => slot.id === form.appointmentSlot)?.label ?? 'Selected slot'}` : t('walkin')],
                 ].map(([label, value]) => (
                   <div key={String(label)} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                     <span className="text-[hsl(var(--muted-foreground))] font-semibold">{label}</span>
@@ -624,9 +623,9 @@ function Book() {
               {error && <p className="rounded-lg bg-[hsl(var(--destructive))]/8 p-3 text-sm text-[hsl(var(--destructive))] font-semibold" data-testid="status-registration-error">{error}</p>}
 
               <div className="flex justify-between">
-                <Button type="button" variant="outline" onClick={() => setStep(2)}>Back</Button>
+                <Button type="button" variant="outline" onClick={() => setStep(2)}>{t('prev')}</Button>
                 <Button type="submit" disabled={createVisit.isPending} data-testid="button-submit-registration" className="bg-[hsl(var(--secondary))] text-white">
-                  {createVisit.isPending ? 'Registering…' : 'Confirm and get token'} <Check size={16} />
+                  {createVisit.isPending ? `${t('registering')}` : `${t('confirm_get_token')}`} <Check size={16} />
                 </Button>
               </div>
             </form>
@@ -638,6 +637,7 @@ function Book() {
 }
 
 function Status() {
+  const { t } = useTranslation();
   const { token = '' } = useParams<{ token: string }>();
   const [lookup, setLookup] = useState(token === 'lookup' ? '' : token);
   const activeToken = token === 'lookup' ? lookup.trim() : token;
@@ -652,16 +652,16 @@ function Status() {
     <div className="min-h-[100dvh] bg-[hsl(var(--background))]">
       <PublicHeader />
       <main className="mx-auto max-w-2xl px-4 py-10 sm:py-16">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-status-back"><ChevronRight className="rotate-180" size={15} /> Back to Home</Link>
+        <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-status-back"><ChevronRight className="rotate-180" size={15} /> {t('back_to_home')}</Link>
 
         {token === 'lookup' && (
           <Card className="paper-shadow mt-8 border-0 p-6 sm:p-8">
-            <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Find your registration</p>
-            <h1 className="display-serif mt-2 text-3xl font-bold">Enter your token</h1>
-            <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Your token was shown after registration and is also available at the office desk.</p>
+            <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">{t('lookup_title')}</p>
+            <h1 className="display-serif mt-2 text-3xl font-bold">{t('enter_token')}</h1>
+            <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">{t('lookup_desc')}</p>
             <form className="mt-6 flex gap-2" onSubmit={submitLookup}>
               <Input value={lookup} onChange={(e) => setLookup(e.target.value.toUpperCase())} placeholder="e.g. CEO-001 or VVIP-002" className="font-mono uppercase tracking-widest text-lg" data-testid="input-status-token" />
-              <Button type="submit" disabled={lookup.length < 3} data-testid="button-find-status">Find token <Search size={16} /></Button>
+              <Button type="submit" disabled={lookup.length < 3} data-testid="button-find-status">{t('check')} <Search size={16} /></Button>
             </form>
           </Card>
         )}
@@ -677,40 +677,40 @@ function Status() {
                   <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Token status</p>
+                        <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">{t('token_label')}</p>
                         {visit.priority === 'vvip' && <Badge className="bg-amber-600 text-white text-[9px] px-1.5 py-0">🌟 VVIP</Badge>}
                       </div>
                       <p className="mt-2 font-mono text-3xl font-bold tracking-wider" data-testid="text-status-token">{visit.token}</p>
-                      <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))] font-semibold">Registered for {visit.fullName}</p>
+                      <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))] font-semibold">{t('full_name')}: {visit.fullName}</p>
                     </div>
-                    <Badge className={`w-fit px-3 py-1.5 text-white capitalize ${visit.token.startsWith('VVIP-') ? 'bg-amber-600' : 'bg-[hsl(var(--secondary))]'}`} data-testid="status-visit-state">{visit.status.replaceAll('_', ' ')}</Badge>
+                    <Badge className={`w-fit px-3 py-1.5 text-white capitalize ${visit.token.startsWith('VVIP-') ? 'bg-amber-600' : 'bg-[hsl(var(--secondary))]'}`} data-testid="status-visit-state">{t(`status_${visit.status}`)}</Badge>
                   </div>
 
                   <div className="mt-8 grid grid-cols-3 gap-2 rounded-xl bg-[hsl(var(--muted))]/60 p-4 text-center">
                     <div>
-                      <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">Queue Pos.</p>
+                      <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">{t('queue_position')}</p>
                       <p className="mt-2 font-serif text-2xl font-bold" data-testid="text-status-position">{visit.status === 'waiting' ? visit.queuePosition : '—'}</p>
                     </div>
                     <div className="border-x border-[hsl(var(--border))]">
-                      <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">Est. wait</p>
+                      <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">{t('est_wait')}</p>
                       <p className="mt-2 font-serif text-2xl font-bold" data-testid="text-status-wait">
                         {visit.status === 'waiting' ? (visit.token.startsWith('VVIP-') ? '~5m' : `${(visit.queuePosition ?? 1) * 5}m`) : '—'}
                       </p>
                     </div>
                     <div>
-                      <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">Visit</p>
-                      <p className="mt-2 text-xs font-bold" data-testid="text-status-visit-date">{visit.visitType === 'appointment' ? dateLabel(visit.appointmentDate) : 'Walk-in'}</p>
+                      <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">{t('visit_type')}</p>
+                      <p className="mt-2 text-xs font-bold text-wrap" data-testid="text-status-visit-date">{visit.visitType === 'appointment' ? dateLabel(visit.appointmentDate) : t('walkin')}</p>
                     </div>
                   </div>
 
                   <div className="mt-8">
-                    <p className="mono-label text-[10px] text-[hsl(var(--muted-foreground))] font-bold">What happens next</p>
+                    <p className="mono-label text-[10px] text-[hsl(var(--muted-foreground))] font-bold">{t('journey_subtitle')}</p>
                     <div className="mt-4 space-y-4">
                       {[
-                        ['Registration received', true],
-                        ['Queue position confirmed', ['waiting', 'called', 'held', 'completed'].includes(visit.status)],
-                        ['Meeting / desk review', ['called', 'completed'].includes(visit.status)],
-                        ['Outcome recorded', visit.status === 'completed']
+                        [t('registration_received'), true],
+                        [t('status_waiting'), ['waiting', 'called', 'held', 'completed'].includes(visit.status)],
+                        [t('called_list'), ['called', 'completed'].includes(visit.status)],
+                        [t('status_completed'), visit.status === 'completed']
                       ].map(([label, done], i) => (
                         <div className="flex items-center gap-3" key={String(label)} data-testid={`status-timeline-${i + 1}`}>
                           <div className={`grid h-7 w-7 place-items-center rounded-full ${done ? (visit.token.startsWith('VVIP-') ? 'bg-amber-600 text-white' : 'bg-[hsl(var(--secondary))] text-white') : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{done ? <Check size={14} /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</div>
@@ -721,15 +721,15 @@ function Status() {
 
                     {visit.outcome && (
                       <div className="mt-8 rounded-xl border border-[hsl(var(--secondary))]/25 bg-[hsl(var(--secondary))]/5 p-5 animate-rise">
-                        <p className="mono-label text-[9px] text-[hsl(var(--secondary))] font-bold">Recorded outcome</p>
-                        <p className="mt-2 font-serif font-bold text-lg capitalize text-[hsl(var(--secondary))]" data-testid="text-status-outcome">{visit.outcome.replaceAll('_', ' ')}</p>
+                        <p className="mono-label text-[9px] text-[hsl(var(--secondary))] font-bold">{t('referred_to')}</p>
+                        <p className="mt-2 font-serif font-bold text-lg capitalize text-[hsl(var(--secondary))]" data-testid="text-status-outcome">{t(visit.outcome)}</p>
                         {visit.notes && <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))] bg-white border border-[hsl(var(--border))] rounded-lg p-3 italic">"{visit.notes}"</p>}
-                        {visit.referredTo && <p className="mt-2 text-xs font-semibold">Referred to: <span className="text-[hsl(var(--primary))]">{visit.referredTo}</span></p>}
-                        {visit.referenceNumber && <p className="mt-4 font-mono text-[11px] text-[hsl(var(--muted-foreground))]">Reference number: {visit.referenceNumber}</p>}
+                        {visit.referredTo && <p className="mt-2 text-xs font-semibold">{t('department')}: <span className="text-[hsl(var(--primary))]">{t(visit.referredTo)}</span></p>}
+                        {visit.referenceNumber && <p className="mt-4 font-mono text-[11px] text-[hsl(var(--muted-foreground))]">{t('ref_num')}: {visit.referenceNumber}</p>}
                       </div>
                     )}
 
-                    <p className="mt-8 text-xs leading-5 text-[hsl(var(--muted-foreground))]">This status page updates live as the desk records updates. For support, please approach the PA help desk with your token.</p>
+                    <p className="mt-8 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{t('token_desc')}</p>
                   </div>
                 </div>
               </Card>
