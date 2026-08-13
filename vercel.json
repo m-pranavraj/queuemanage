@@ -1,5 +1,7 @@
 {
+  "buildCommand": "pnpm run build",
   "outputDirectory": "artifacts/zp-sampark/dist/public",
+  "installCommand": "pnpm install",
   "rewrites": [
     {
       "source": "/((?!api/).*)",
