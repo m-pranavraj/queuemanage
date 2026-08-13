@@ -1,14 +1,6 @@
 {
   "outputDirectory": "artifacts/zp-sampark/dist/public",
-  "builds": [
-    {
-      "src": "artifacts/api-server/dist/vercel-handler.cjs",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["artifacts/api-server/dist/**"]
-      }
-    }
-  ],
+  "buildCommand": "pnpm run build",
   "routes": [
     {
       "src": "/api/(.*)",
@@ -18,5 +10,12 @@
       "src": "/((?!api/).*)",
       "dest": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "artifacts/api-server/dist/vercel-handler.cjs": {
+      "runtime": "@vercel/node@5",
+      "memory": 512,
+      "maxDuration": 30
+    }
+  }
 }
