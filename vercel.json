@@ -2,10 +2,6 @@
   "outputDirectory": "artifacts/zp-sampark/dist/public",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index.cjs"
-    },
-    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
