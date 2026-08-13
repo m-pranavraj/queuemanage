@@ -4,7 +4,7 @@ import { seedDatabase } from "../artifacts/api-server/src/lib/seed";
 let seeded = false;
 
 // Middleware to ensure DB is seeded on first request
-app.use(async (req, res, next) => {
+(app as any).use(async (req: any, res: any, next: any) => {
   if (!seeded) {
     try {
       await seedDatabase();
