@@ -17,7 +17,7 @@ import {
   useGetOfficeSlots, useGetOfficeVisit, useGetVisitStatus, useSaveVisitOutcome,
   useSearchOfficeVisits, useUpdateQueueAction,
   useLogin, useGetOfficeUsers, useCreateOfficeUser, useDeleteOfficeUser,
-  setAuthTokenGetter
+  setAuthTokenGetter, setBaseUrl
 } from '@workspace/api-client-react';
 import type {
   AppointmentSlotAdmin, DashboardSummary, OutcomeInput, QueueActionInput,
@@ -38,6 +38,10 @@ const queryClient = new QueryClient();
 
 // Initialize token getter from localStorage for all API requests
 setAuthTokenGetter(() => localStorage.getItem('zp_session_token'));
+
+if (import.meta.env.VITE_API_URL) {
+  setBaseUrl(import.meta.env.VITE_API_URL);
+}
 
 const today = () => new Date().toISOString().slice(0, 10);
 const dateLabel = (value?: string | null) => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
