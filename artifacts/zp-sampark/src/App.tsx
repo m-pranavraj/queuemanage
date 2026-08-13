@@ -48,6 +48,29 @@ const today = () => new Date().toISOString().slice(0, 10);
 const dateLabel = (value?: string | null) => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const timeLabel = (value?: string | null) => value ? new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
 
+function IndianClock() {
+  const [time, setTime] = useState('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const options: Intl.DateTimeFormatOptions = {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      };
+      setTime(new Date().toLocaleTimeString('en-IN', options));
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return <span className="font-mono text-xs tabular-nums">{time}</span>;
+}
+
 function Wordmark({ dark = false }: { dark?: boolean }) {
   const { t } = useTranslation();
   return (
@@ -72,7 +95,12 @@ function PublicHeader() {
   return (
     <header className="border-b border-[hsl(var(--border))] bg-[hsl(var(--card))]/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-        <Link href="/" data-testid="link-home-brand"><Wordmark /></Link>
+        <div className="flex items-center gap-4">
+          <Link href="/" data-testid="link-home-brand"><Wordmark /></Link>
+          <span className="hidden text-xs text-[hsl(var(--muted-foreground))] border-l border-[hsl(var(--border))] pl-4 md:inline-block font-mono">
+            IST: <IndianClock />
+          </span>
+        </div>
         <nav className="flex items-center gap-2">
           <select 
             value={lang} 
@@ -181,7 +209,7 @@ function OfficeShell({ children, title, eyebrow }: { children: React.ReactNode; 
                 <option value="mr">मराठी</option>
                 <option value="hi">हिंदी</option>
               </select>
-              <div className="hidden text-right sm:block"><p className="text-xs font-semibold">Today, {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p><p className="text-[11px] text-[hsl(var(--muted-foreground))]">{t('zp_sampark')}</p></div>
+              <div className="hidden text-right sm:block"><p className="text-xs font-semibold">Today, {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} | <IndianClock /></p><p className="text-[11px] text-[hsl(var(--muted-foreground))]">{t('zp_sampark')}</p></div>
               <div className="grid h-9 w-9 place-items-center rounded-full bg-[hsl(var(--secondary))] text-xs font-bold text-white uppercase" data-testid="avatar-office-user">{fullName.slice(0, 2)}</div>
             </div>
           </div>
