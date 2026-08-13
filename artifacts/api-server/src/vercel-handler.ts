@@ -3,17 +3,16 @@ import { seedDatabase } from "./lib/seed";
 
 let seeded = false;
 
-// Middleware to seed DB on first request  
-app.use(async (req: any, res: any, next: any) => {
+app.use(async (req: any, _res: any, next: any) => {
   if (!seeded) {
     try {
       await seedDatabase();
       seeded = true;
     } catch (err) {
-      console.error("Failed to seed database:", err);
+      console.error("DB seed error:", err);
     }
   }
   next();
 });
 
-module.exports = app;
+export default app;
