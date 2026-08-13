@@ -30,6 +30,7 @@ export const visitsTable = pgTable("zp_visits", {
   visitDate: date("visit_date", { mode: "string" }).notNull(),
   appointmentDate: date("appointment_date", { mode: "string" }),
   appointmentSlot: text("appointment_slot"),
+  appointmentDuration: integer("appointment_duration").notNull().default(5),
   priority: text("priority").notNull().default("normal"),
   status: text("status").notNull().default("waiting"),
   queuePosition: integer("queue_position").notNull().default(1),

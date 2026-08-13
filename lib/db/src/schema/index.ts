@@ -19,3 +19,4 @@
 
 export * from "./visits";
 export * from "./appointment-slots";
+export * from "./users";

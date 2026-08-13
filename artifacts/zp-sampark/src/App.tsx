@@ -1,22 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, useParams, Router as WouterRouter } from 'wouter';
 import {
   Activity, ArrowRight, BarChart3, Bell, CalendarDays, Check, CheckCircle2, ChevronRight,
   Clock3, ExternalLink, FileSearch, Landmark, ListChecks, MapPin, Menu, Plus, Printer,
   QrCode, RefreshCcw, Search, Settings2, ShieldCheck, SlidersHorizontal, Ticket,
-  Trash2, UsersRound, X,
+  Trash2, UsersRound, X, LogOut, Lock, Key, ShieldAlert
 } from 'lucide-react';
 import {
   getGetAvailabilityQueryKey, getGetOfficeAnalyticsQueryKey, getGetOfficeDashboardQueryKey,
   getGetOfficeQueueQueryKey, getGetOfficeVisitQueryKey, getGetVisitStatusQueryKey,
   getGetOfficeAppointmentsQueryKey, getGetOfficeSlotsQueryKey, getSearchOfficeVisitsQueryKey,
+  getGetOfficeUsersQueryKey,
   useCreateOfficeSlot, useCreateVisit, useDeleteOfficeSlot, useGetAvailability,
   useGetOfficeAnalytics, useGetOfficeAppointments, useGetOfficeDashboard, useGetOfficeQueue,
   useGetOfficeSlots, useGetOfficeVisit, useGetVisitStatus, useSaveVisitOutcome,
   useSearchOfficeVisits, useUpdateQueueAction,
+  useLogin, useGetOfficeUsers, useCreateOfficeUser, useDeleteOfficeUser,
+  setAuthTokenGetter
 } from '@workspace/api-client-react';
-import type { AppointmentSlotAdmin, DashboardSummary, OutcomeInput, QueueActionInput, VisitInput } from '@workspace/api-client-react';
+import type {
+  AppointmentSlotAdmin, DashboardSummary, OutcomeInput, QueueActionInput,
+  VisitInput, UserResponse
+} from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -29,6 +35,9 @@ import { Textarea } from '@/components/ui/textarea';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
+
+// Initialize token getter from localStorage for all API requests
+setAuthTokenGetter(() => localStorage.getItem('zp_session_token'));
 
 const today = () => new Date().toISOString().slice(0, 10);
 const dateLabel = (value?: string | null) => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -50,6 +59,9 @@ function Wordmark({ dark = false }: { dark?: boolean }) {
 }
 
 function PublicHeader() {
+  const token = localStorage.getItem('zp_session_token');
+  const role = localStorage.getItem('zp_user_role');
+
   return (
     <header className="border-b border-[hsl(var(--border))] bg-[hsl(var(--card))]/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
@@ -58,9 +70,18 @@ function PublicHeader() {
           <Link href="/status/lookup" className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] sm:flex" data-testid="link-check-status">
             <Ticket size={16} /> Check status
           </Link>
-           <Link href="/qr" className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] px-3 py-2 text-sm font-semibold text-[hsl(var(--secondary))] transition hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))]/5" data-testid="link-public-qr">
-             <QrCode size={16} /> <span className="hidden sm:inline">QR entry</span>
+          <Link href="/qr" className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] px-3 py-2 text-sm font-semibold text-[hsl(var(--secondary))] transition hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))]/5" data-testid="link-public-qr">
+            <QrCode size={16} /> <span className="hidden sm:inline">QR entry</span>
           </Link>
+          {token ? (
+            <Link href="/office" className="flex items-center gap-2 rounded-full bg-[hsl(var(--primary))] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90" data-testid="link-staff-console">
+              Staff desk ({role})
+            </Link>
+          ) : (
+            <Link href="/login" className="flex items-center gap-2 rounded-full border border-[hsl(var(--border))] px-4 py-2 text-sm font-semibold text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))]" data-testid="link-staff-login">
+              Staff login
+            </Link>
+          )}
         </nav>
       </div>
     </header>
@@ -68,15 +89,30 @@ function PublicHeader() {
 }
 
 function OfficeShell({ children, title, eyebrow }: { children: React.ReactNode; title: string; eyebrow: string }) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [mobileNav, setMobileNav] = useState(false);
-  const links = [
-    { href: '/office', label: 'Live desk', icon: ListChecks },
-    { href: '/appointments', label: 'Appointments', icon: CalendarDays },
-    { href: '/office/analytics', label: 'Analytics', icon: BarChart3 },
-    { href: '/office/search', label: 'Visitor records', icon: FileSearch },
-    { href: '/admin', label: 'Admin settings', icon: Settings2 },
+  const role = localStorage.getItem('zp_user_role') || '';
+  const fullName = localStorage.getItem('zp_user_fullname') || 'PA';
+
+  const logout = () => {
+    localStorage.removeItem('zp_session_token');
+    localStorage.removeItem('zp_user_role');
+    localStorage.removeItem('zp_user_name');
+    localStorage.removeItem('zp_user_fullname');
+    setLocation('/');
+  };
+
+  // Define links visible to roles
+  const allLinks = [
+    { href: '/office', label: 'Live desk', icon: ListChecks, roles: ['admin', 'ceo', 'reception'] },
+    { href: '/appointments', label: 'Appointments', icon: CalendarDays, roles: ['admin', 'ceo', 'reception'] },
+    { href: '/office/analytics', label: 'Analytics', icon: BarChart3, roles: ['admin', 'ceo'] },
+    { href: '/office/search', label: 'Visitor records', icon: FileSearch, roles: ['admin', 'ceo', 'reception', 'officer'] },
+    { href: '/admin', label: 'Admin settings', icon: Settings2, roles: ['admin'] },
   ];
+
+  const visibleLinks = allLinks.filter(link => link.roles.includes(role));
+
   return (
     <div className="min-h-[100dvh] bg-[hsl(var(--background))]">
       <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-[hsl(var(--sidebar))] px-5 py-6 text-[hsl(var(--sidebar-foreground))] transition-transform duration-300 lg:translate-x-0 ${mobileNav ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -84,21 +120,28 @@ function OfficeShell({ children, title, eyebrow }: { children: React.ReactNode; 
           <Wordmark dark />
           <button className="rounded-lg p-2 text-white/60 hover:bg-white/10 lg:hidden" onClick={() => setMobileNav(false)} data-testid="button-close-office-nav"><X size={18} /></button>
         </div>
-        <div className="mt-10 border-l-2 border-[hsl(var(--primary))] pl-4">
+        <div className="mt-8 border-l-2 border-[hsl(var(--primary))] pl-4">
           <p className="mono-label text-[9px] text-white/50">Zilla Parishad</p>
           <p className="mt-1 font-serif text-sm text-white/90">Office of the Chief Executive Officer</p>
         </div>
-        <nav className="mt-10 space-y-1" aria-label="Office navigation">
-          {links.map(({ href, label, icon: Icon }) => (
+        <nav className="mt-8 space-y-1" aria-label="Office navigation">
+          {visibleLinks.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href} onClick={() => setMobileNav(false)} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${location === href ? 'bg-white/12 text-white' : 'text-white/60 hover:bg-white/8 hover:text-white'}`} data-testid={`link-office-${label.toLowerCase().replace(' ', '-')}`}>
               <Icon size={18} strokeWidth={1.8} /><span>{label}</span>{location === href && <ChevronRight className="ml-auto text-[hsl(var(--primary))]" size={15} />}
             </Link>
           ))}
         </nav>
-        <div className="absolute bottom-7 left-5 right-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex items-center gap-2 text-[hsl(var(--primary))]"><Activity size={15} /><span className="mono-label text-[9px]">Desk status</span></div>
-          <p className="mt-2 text-sm text-white/90">Office is receiving visitors</p>
-          <p className="mt-1 text-xs text-white/45">Live queue updates enabled</p>
+        <div className="absolute bottom-5 left-5 right-5 space-y-3">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center justify-between text-white/70">
+              <span className="text-xs font-semibold">{fullName}</span>
+              <Badge className="bg-[hsl(var(--primary))]/80 text-[10px] text-white capitalize">{role}</Badge>
+            </div>
+            <p className="mt-1 text-[10px] text-white/45">Authenticated Session</p>
+          </div>
+          <Button variant="outline" className="w-full justify-start gap-2 border-white/10 text-white hover:bg-white/10 hover:text-white" onClick={logout} data-testid="button-logout">
+            <LogOut size={16} /> Log out
+          </Button>
         </div>
       </aside>
       {mobileNav && <button className="fixed inset-0 z-30 bg-[hsl(var(--foreground))]/40 lg:hidden" onClick={() => setMobileNav(false)} aria-label="Close navigation" data-testid="button-office-nav-overlay" />}
@@ -111,7 +154,7 @@ function OfficeShell({ children, title, eyebrow }: { children: React.ReactNode; 
             </div>
             <div className="flex items-center gap-3">
               <div className="hidden text-right sm:block"><p className="text-xs font-semibold">Today, {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p><p className="text-[11px] text-[hsl(var(--muted-foreground))]">Sampark desk</p></div>
-              <div className="grid h-9 w-9 place-items-center rounded-full bg-[hsl(var(--secondary))] text-xs font-bold text-white" data-testid="avatar-office-user">PA</div>
+              <div className="grid h-9 w-9 place-items-center rounded-full bg-[hsl(var(--secondary))] text-xs font-bold text-white uppercase" data-testid="avatar-office-user">{fullName.slice(0, 2)}</div>
             </div>
           </div>
         </header>
@@ -128,6 +171,50 @@ function LoadingBlock({ lines = 3 }: { lines?: number }) {
 function QueryError({ retry }: { retry: () => void }) {
   return <div className="rounded-2xl border border-[hsl(var(--destructive))]/25 bg-[hsl(var(--destructive))]/5 p-5 text-center" data-testid="status-query-error"><p className="font-semibold">We could not load this right now.</p><p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Please try once more. Your place in the queue is not affected.</p><Button className="mt-4" variant="outline" onClick={retry} data-testid="button-retry-query"><RefreshCcw size={15} /> Try again</Button></div>;
 }
+
+// ---------------------------------------------------------------------------
+// Route Protection Wrapper
+// ---------------------------------------------------------------------------
+
+function ProtectedRoute({ path, component: Component, allowedRoles }: { path: string; component: React.ComponentType<any>; allowedRoles?: string[] }) {
+  const [location, setLocation] = useLocation();
+  const token = localStorage.getItem('zp_session_token');
+  const role = localStorage.getItem('zp_user_role');
+
+  useEffect(() => {
+    if (!token) {
+      setLocation(`/login?redirect=${encodeURIComponent(location)}`);
+    }
+  }, [token, location, setLocation]);
+
+  if (!token) return null;
+
+  if (allowedRoles && !allowedRoles.includes(role || '')) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[hsl(var(--background))] p-4 text-center">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))]">
+          <ShieldAlert size={32} />
+        </div>
+        <h1 className="display-serif mt-6 text-3xl font-bold">403 Forbidden</h1>
+        <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">You do not have the required role ({allowedRoles.join(', ')}) to view this operations panel.</p>
+        <div className="mt-6 flex gap-3">
+          <Link href="/" className="inline-flex h-10 items-center justify-center rounded-md bg-[hsl(var(--primary))] px-4 text-sm font-semibold text-white shadow-sm hover:opacity-90">Go Home</Link>
+          <Button variant="outline" onClick={() => {
+            localStorage.removeItem('zp_session_token');
+            localStorage.removeItem('zp_user_role');
+            setLocation('/login');
+          }}>Log in with another account</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return <Route path={path} component={Component} />;
+}
+
+// ---------------------------------------------------------------------------
+// Visitor Pages
+// ---------------------------------------------------------------------------
 
 function Home() {
   return (
@@ -150,9 +237,9 @@ function Home() {
             <Card className="paper-shadow overflow-hidden border-0 bg-[hsl(var(--secondary))] text-white">
               <div className="flex items-center justify-between border-b border-white/12 px-5 py-4"><div><p className="mono-label text-[9px] text-white/50">Today's journey</p><p className="mt-1 text-sm font-semibold">From entry to outcome</p></div><div className="grid h-9 w-9 place-items-center rounded-lg bg-white/10"><Activity size={17} className="text-[hsl(var(--primary))]" /></div></div>
               <div className="space-y-0 px-5 py-5">
-                {[['01', 'Register your matter', 'Tell us what brings you here'], ['02', 'Receive your token', 'Know your place and wait'], ['03', 'Reach a clear outcome', 'Track what happens next']].map(([number, title, text], i) => (
+                {[['01', 'Register your mobile', 'Verify quickly via one-time code'], ['02', 'Provide visit details', 'Explain your matter to the office'], ['03', 'Select schedule & priority', 'Select appointment or walk-in queue'], ['04', 'Receive token & status', 'Follow live updates on screen']].map(([number, title, text], i) => (
                   <div className="relative flex gap-4 pb-7 last:pb-0" key={number} data-testid={`card-journey-step-${i + 1}`}>
-                    {i < 2 && <span className="absolute left-[15px] top-8 h-full w-px bg-white/15" />}
+                    {i < 3 && <span className="absolute left-[15px] top-8 h-full w-px bg-white/15" />}
                     <span className="relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[hsl(var(--primary))]/60 bg-[hsl(var(--secondary))] font-mono text-[10px] font-bold text-[hsl(var(--primary))]">{number}</span>
                     <div><p className="font-semibold">{title}</p><p className="mt-1 text-sm text-white/55">{text}</p></div>
                   </div>
@@ -177,30 +264,373 @@ function QRPage() {
   return <div className="min-h-[100dvh] bg-[hsl(var(--background))]"><PublicHeader /><main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16"><Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-qr-back"><ChevronRight className="rotate-180" size={15} /> Back to Sampark</Link><div className="mt-8 grid gap-8 md:grid-cols-[.9fr_1.1fr] md:items-center"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Public entry point</p><h1 className="display-serif mt-2 text-3xl font-bold sm:text-4xl">Scan to register a visit.</h1><p className="mt-4 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Place this QR at the Zilla Parishad entrance, reception, CEO office, or in official communications. It opens the public registration form—no app download required.</p><div className="mt-6 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))]">Exposed registration URL</p><p className="mt-2 break-all font-mono text-xs font-semibold" data-testid="text-exposed-booking-url">{bookingUrl}</p></div><div className="mt-5 flex flex-wrap gap-3"><Button onClick={() => window.print()} data-testid="button-print-qr"><Printer size={16} /> Print QR</Button><a href={bookingUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-md border border-[hsl(var(--border))] px-4 text-sm font-semibold text-[hsl(var(--secondary))]" data-testid="link-open-booking-url"><ExternalLink size={16} /> Open registration</a></div></div><Card className="paper-shadow border-0 p-6 text-center sm:p-8"><div className="mx-auto max-w-[360px] rounded-2xl bg-white p-3"><img src={qrImageUrl} alt={`QR code for ${bookingUrl}`} className="mx-auto aspect-square w-full" data-testid="img-registration-qr" /></div><p className="mt-5 font-serif text-lg font-bold">ZP Sampark registration</p><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">A public link for citizens and visitors</p></Card></div></main></div>;
 }
 
-type BookState = Record<string, string | boolean>;
-const bookDefaults: BookState = { fullName: '', mobile: '', taluka: '', location: '', organisation: '', purpose: '', category: 'Public grievance', department: 'General administration', description: '', previouslyApproached: false, previousDepartment: '', previousDate: '', previousReference: '', visitType: 'appointment', appointmentDate: today(), appointmentSlot: '', priority: 'normal' };
+type BookState = Record<string, string | boolean | number>;
+const bookDefaults: BookState = {
+  fullName: '', mobile: '', taluka: 'Baramati', location: '', organisation: '',
+  purpose: '', category: 'Grievance', department: 'Water & Sanitation', description: '',
+  previouslyApproached: false, previousDepartment: '', previousDate: '', previousReference: '',
+  visitType: 'walk_in', appointmentDate: today(), appointmentSlot: '', appointmentDuration: 5,
+  priority: 'normal'
+};
 
 function Field({ label, name, value, onChange, placeholder, type = 'text', required = false }: { label: string; name: string; value: string; onChange: (name: string, value: string) => void; placeholder?: string; type?: string; required?: boolean }) {
   return <div className="space-y-2"><Label htmlFor={name} className="text-sm font-semibold">{label}{required && <span className="ml-1 text-[hsl(var(--primary))]">*</span>}</Label><Input id={name} name={name} value={value} onChange={(e) => onChange(name, e.target.value)} placeholder={placeholder} type={type} required={required} data-testid={`input-${name}`} /></div>;
 }
 
 function Book() {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(1); // 1: Details, 2: Visit Plan, 3: Review
   const [form, setForm] = useState<BookState>(bookDefaults);
   const [created, setCreated] = useState<{ token: string; id: number } | null>(null);
   const [error, setError] = useState('');
   const [date, setDate] = useState(String(form.appointmentDate));
+
   const availability = useGetAvailability({ date }, { query: { queryKey: getGetAvailabilityQueryKey({ date }) } });
   const createVisit = useCreateVisit();
-  const setValue = (name: string, value: string | boolean) => setForm((current) => ({ ...current, [name]: value }));
+  const setValue = (name: string, value: string | boolean | number) => setForm((current) => ({ ...current, [name]: value }));
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
-    const payload: VisitInput = { ...form, fullName: String(form.fullName), mobile: String(form.mobile), taluka: String(form.taluka), location: String(form.location), organisation: String(form.organisation) || null, purpose: String(form.purpose), category: String(form.category), department: String(form.department), description: String(form.description), previouslyApproached: Boolean(form.previouslyApproached), previousDepartment: String(form.previousDepartment) || null, previousDate: String(form.previousDate) || null, previousReference: String(form.previousReference) || null, visitType: form.visitType === 'walk_in' ? 'walk_in' : 'appointment', appointmentDate: form.visitType === 'appointment' ? String(form.appointmentDate) : null, appointmentSlot: form.visitType === 'appointment' ? String(form.appointmentSlot) || null : null, priority: form.priority === 'priority' ? 'priority' : form.priority === 'official' ? 'official' : 'normal' };
-    createVisit.mutate({ data: payload }, { onSuccess: (visit) => { queryClient.invalidateQueries({ queryKey: getGetAvailabilityQueryKey({ date }) }); queryClient.invalidateQueries({ queryKey: getGetOfficeDashboardQueryKey() }); queryClient.invalidateQueries({ queryKey: getGetOfficeQueueQueryKey() }); setCreated({ token: visit.token, id: visit.id }); }, onError: () => setError('We could not register this visit. Please check your details and try again.') });
+
+    const payload: VisitInput = {
+      fullName: String(form.fullName),
+      mobile: String(form.mobile),
+      taluka: String(form.taluka),
+      location: String(form.location),
+      organisation: String(form.organisation) || null,
+      purpose: String(form.purpose),
+      category: String(form.category),
+      department: String(form.department),
+      description: String(form.description),
+      previouslyApproached: Boolean(form.previouslyApproached),
+      previousDepartment: String(form.previousDepartment) || null,
+      previousDate: String(form.previousDate) || null,
+      previousReference: String(form.previousReference) || null,
+      visitType: form.visitType === 'walk_in' ? 'walk_in' : 'appointment',
+      appointmentDate: form.visitType === 'appointment' ? String(form.appointmentDate) : null,
+      appointmentSlot: form.visitType === 'appointment' ? String(form.appointmentSlot) || null : null,
+      appointmentDuration: form.visitType === 'appointment' ? Number(form.appointmentDuration) : 5,
+      priority: form.priority as any
+    };
+
+    createVisit.mutate({ data: payload }, {
+      onSuccess: (visit) => {
+        queryClient.invalidateQueries({ queryKey: getGetAvailabilityQueryKey({ date }) });
+        queryClient.invalidateQueries({ queryKey: getGetOfficeDashboardQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetOfficeQueueQueryKey() });
+        setCreated({ token: visit.token, id: visit.id });
+      },
+      onError: () => {
+        setError('We could not register this visit. Please check details and try again.');
+      }
+    });
   };
-  if (created) return <div className="min-h-[100dvh] bg-[hsl(var(--background))]"><PublicHeader /><div className="mx-auto max-w-lg px-4 py-12 sm:py-20"><Card className="paper-shadow overflow-hidden border-0"><div className="h-2 bg-[hsl(var(--secondary))]" /><div className="p-6 text-center sm:p-10"><div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[hsl(var(--secondary))]/10 text-[hsl(var(--secondary))]"><CheckCircle2 size={32} /></div><p className="mono-label mt-6 text-[10px] text-[hsl(var(--secondary))]">Registration received</p><h1 className="display-serif mt-3 text-3xl font-bold">Keep this token safe</h1><div className="mt-7 rounded-2xl bg-[hsl(var(--secondary))] p-5 text-white"><p className="text-xs text-white/55">Your Sampark token</p><p className="mt-2 font-mono text-4xl font-bold tracking-[.18em]" data-testid="text-created-token">{created.token}</p></div><p className="mt-6 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Show this token at the office desk. You can also follow your queue position online.</p><div className="mt-6 flex flex-col gap-3"><Link href={`/status/${created.token}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] text-sm font-bold text-white" data-testid="link-view-created-status">View live status <ArrowRight size={16} /></Link><Link href="/" className="inline-flex h-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] text-sm font-bold text-[hsl(var(--secondary))]" data-testid="link-return-home">Return to Sampark</Link></div></div></Card></div></div>;
-  return <div className="min-h-[100dvh] bg-[hsl(var(--background))]"><PublicHeader /><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12"><div className="mb-8"><Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-book-back"><ChevronRight className="rotate-180" size={15} /> Back to Sampark</Link><p className="mono-label mt-8 text-[10px] text-[hsl(var(--primary))]">New registration</p><h1 className="display-serif mt-2 text-3xl font-bold sm:text-4xl">Let us understand your visit.</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">A few details help the office prepare. Your mobile number is used only to identify this registration.</p></div><div className="mb-7 flex items-center gap-2">{['Your details', 'Visit plan', 'Confirm'].map((label, i) => <div key={label} className="flex flex-1 items-center gap-2" data-testid={`step-${i + 1}`}><div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold ${step > i + 1 ? 'bg-[hsl(var(--secondary))] text-white' : step === i + 1 ? 'bg-[hsl(var(--primary))] text-white' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{step > i + 1 ? <Check size={14} /> : i + 1}</div><span className={`hidden text-xs font-semibold sm:block ${step === i + 1 ? 'text-[hsl(var(--foreground))]' : 'text-[hsl(var(--muted-foreground))]'}`}>{label}</span>{i < 2 && <span className="h-px flex-1 bg-[hsl(var(--border))]" />}</div>)}</div><Card className="paper-shadow border-0 p-5 sm:p-8"><form onSubmit={submit} data-testid="form-visit-registration">{step === 1 && <div className="space-y-6 animate-rise"><div className="grid gap-5 sm:grid-cols-2"><Field label="Full name" name="fullName" value={String(form.fullName)} onChange={setValue} placeholder="As on your identity document" required /><Field label="Mobile number" name="mobile" value={String(form.mobile)} onChange={setValue} placeholder="10-digit mobile number" type="tel" required /><Field label="Taluka" name="taluka" value={String(form.taluka)} onChange={setValue} placeholder="Your taluka" required /><Field label="Village / town / ward" name="location" value={String(form.location)} onChange={setValue} placeholder="Where do you live?" required /><Field label="Organisation (optional)" name="organisation" value={String(form.organisation)} onChange={setValue} placeholder="If visiting on behalf of an organisation" /></div><div><Label htmlFor="purpose" className="text-sm font-semibold">What brings you to the office?<span className="ml-1 text-[hsl(var(--primary))]">*</span></Label><Input id="purpose" name="purpose" value={String(form.purpose)} onChange={(e) => setValue('purpose', e.target.value)} placeholder="A short title for your matter" className="mt-2" required data-testid="input-purpose" /></div><div className="grid gap-5 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="category" className="text-sm font-semibold">Matter category</Label><select id="category" name="category" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.category)} onChange={(e) => setValue('category', e.target.value)} data-testid="select-category"><option>Public grievance</option><option>Development work</option><option>Land and revenue</option><option>Welfare scheme</option><option>Staff / service matter</option><option>Other</option></select></div><div className="space-y-2"><Label htmlFor="department" className="text-sm font-semibold">Department concerned</Label><select id="department" name="department" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.department)} onChange={(e) => setValue('department', e.target.value)} data-testid="select-department"><option>General administration</option><option>Rural development</option><option>Revenue</option><option>Education</option><option>Health</option><option>Water and sanitation</option><option>Women and child development</option></select></div></div><div className="space-y-2"><Label htmlFor="description" className="text-sm font-semibold">Briefly describe the matter<span className="ml-1 text-[hsl(var(--primary))]">*</span></Label><Textarea id="description" value={String(form.description)} onChange={(e) => setValue('description', e.target.value)} maxLength={250} placeholder="What would you like the CEO office to know before your visit?" required data-testid="textarea-description" /><p className="text-right text-xs text-[hsl(var(--muted-foreground))]">{String(form.description).length}/250</p></div><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-4"><input type="checkbox" checked={Boolean(form.previouslyApproached)} onChange={(e) => setValue('previouslyApproached', e.target.checked)} className="mt-1 h-4 w-4 accent-[hsl(var(--primary))]" data-testid="input-previously-approached" /><span><span className="block text-sm font-semibold">I have approached an office about this matter before</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">This helps the office connect your request to an existing record.</span></span></label>{Boolean(form.previouslyApproached) && <div className="grid gap-5 rounded-xl bg-[hsl(var(--muted))]/60 p-4 sm:grid-cols-3"><Field label="Previous department" name="previousDepartment" value={String(form.previousDepartment)} onChange={setValue} placeholder="Department" /><Field label="Previous date" name="previousDate" value={String(form.previousDate)} onChange={setValue} type="date" /><Field label="Reference number" name="previousReference" value={String(form.previousReference)} onChange={setValue} placeholder="If available" /></div>}<div className="flex justify-end"><Button type="button" onClick={() => setStep(2)} data-testid="button-next-visit-plan">Continue <ArrowRight size={16} /></Button></div></div>}{step === 2 && <div className="space-y-6 animate-rise"><div><p className="text-sm font-semibold">How would you like to visit?</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{[{ value: 'appointment', title: 'Book an appointment', text: 'Choose a date and available slot.' }, { value: 'walk_in', title: 'Register as a walk-in', text: 'Join today’s queue at the office.' }].map((item) => <button type="button" key={item.value} onClick={() => setValue('visitType', item.value)} className={`rounded-xl border p-4 text-left transition ${form.visitType === item.value ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/7 ring-1 ring-[hsl(var(--primary))]' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}`} data-testid={`button-visit-type-${item.value}`}><div className="flex items-center justify-between"><span className="font-semibold">{item.title}</span>{form.visitType === item.value && <CheckCircle2 size={17} className="text-[hsl(var(--primary))]" />}</div><p className="mt-1 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{item.text}</p></button>)}</div></div>{form.visitType === 'appointment' && <div className="rounded-2xl bg-[hsl(var(--muted))]/65 p-4 sm:p-5"><div className="grid gap-5 sm:grid-cols-[180px_1fr]"><div className="space-y-2"><Label htmlFor="appointmentDate" className="text-sm font-semibold">Preferred date</Label><Input id="appointmentDate" type="date" min={today()} value={String(form.appointmentDate)} onChange={(e) => { setValue('appointmentDate', e.target.value); setDate(e.target.value); }} data-testid="input-appointment-date" /></div><div><Label className="text-sm font-semibold">Available time slots</Label>{availability.isLoading ? <div className="mt-3 grid grid-cols-2 gap-2"><LoadingBlock lines={1} /><LoadingBlock lines={1} /></div> : availability.isError ? <p className="mt-3 text-sm text-[hsl(var(--destructive))]">Availability is temporarily unavailable. You may register as a walk-in.</p> : <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{(availability.data?.slots ?? []).map((slot) => <button type="button" key={slot.id} disabled={!slot.available} onClick={() => setValue('appointmentSlot', slot.id)} className={`rounded-lg border px-3 py-2 text-left text-xs font-semibold transition ${form.appointmentSlot === slot.id ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-white' : slot.available ? 'border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[hsl(var(--primary))]' : 'cursor-not-allowed border-transparent bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] line-through'}`} data-testid={`button-slot-${slot.id}`}><span>{slot.label}</span><span className="mt-1 block text-[10px] opacity-70">{slot.available ? `${slot.remaining} places` : 'Full'}</span></button>)}</div>}</div></div></div>}<div><Label className="text-sm font-semibold">Priority of visit</Label><div className="mt-3 grid gap-2 sm:grid-cols-3">{[{ value: 'normal', label: 'Standard', text: 'General request' }, { value: 'priority', label: 'Priority', text: 'Time-sensitive matter' }, { value: 'official', label: 'Official', text: 'Government duty' }].map((item) => <button type="button" key={item.value} onClick={() => setValue('priority', item.value)} className={`rounded-xl border p-3 text-left ${form.priority === item.value ? 'border-[hsl(var(--secondary))] bg-[hsl(var(--secondary))]/8' : 'border-[hsl(var(--border))]'}`} data-testid={`button-priority-${item.value}`}><span className="block text-sm font-semibold">{item.label}</span><span className="mt-1 block text-[11px] text-[hsl(var(--muted-foreground))]">{item.text}</span></button>)}</div></div><div className="flex justify-between"><Button type="button" variant="outline" onClick={() => setStep(1)} data-testid="button-back-details">Back</Button><Button type="button" onClick={() => setStep(3)} disabled={form.visitType === 'appointment' && !form.appointmentSlot} data-testid="button-next-confirm">Review registration <ArrowRight size={16} /></Button></div></div>}{step === 3 && <div className="animate-rise"><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Final check</p><h2 className="display-serif mt-2 text-2xl font-bold">Please review your details</h2><div className="mt-6 divide-y divide-[hsl(var(--border))] rounded-xl border border-[hsl(var(--border))]">{[['Visitor', form.fullName], ['Mobile', form.mobile], ['Matter', form.purpose], ['Department', form.department], ['Visit type', form.visitType === 'appointment' ? `Appointment · ${dateLabel(String(form.appointmentDate))}` : 'Walk-in today'], ['Time', form.visitType === 'appointment' ? (availability.data?.slots.find((slot) => slot.id === form.appointmentSlot)?.label ?? 'Selected slot') : 'Queue at office']].map(([label, value]) => <div key={String(label)} className="flex items-center justify-between gap-4 px-4 py-3 text-sm"><span className="text-[hsl(var(--muted-foreground))]">{label}</span><span className="text-right font-semibold" data-testid={`text-review-${String(label).toLowerCase()}`}>{String(value)}</span></div>)}</div>{error && <p className="mt-4 rounded-lg bg-[hsl(var(--destructive))]/8 p-3 text-sm text-[hsl(var(--destructive))]" data-testid="status-registration-error">{error}</p>}<div className="mt-6 flex justify-between"><Button type="button" variant="outline" onClick={() => setStep(2)} data-testid="button-back-visit-plan">Back</Button><Button type="submit" disabled={createVisit.isPending} data-testid="button-submit-registration">{createVisit.isPending ? 'Registering…' : 'Confirm and get token'} <Check size={16} /></Button></div></div>}</form></Card></main></div>;
+
+  // Compute availability for consecutive 5-min slots client-side
+  const getFilteredSlots = () => {
+    const rawSlots = availability.data?.slots ?? [];
+    const duration = Number(form.appointmentDuration);
+    const numSlotsNeeded = Math.ceil(duration / 5);
+
+    if (numSlotsNeeded <= 1) return rawSlots;
+
+    return rawSlots.map((slot, idx) => {
+      // Check if slot and the next (numSlotsNeeded - 1) slots are all available
+      let isConsecAvailable = true;
+      let minRemaining = slot.remaining;
+
+      for (let k = 0; k < numSlotsNeeded; k++) {
+        const targetIndex = idx + k;
+        if (targetIndex >= rawSlots.length) {
+          isConsecAvailable = false;
+          minRemaining = 0;
+          break;
+        }
+        const targetSlot = rawSlots[targetIndex];
+        if (!targetSlot.available || targetSlot.remaining <= 0) {
+          isConsecAvailable = false;
+          minRemaining = 0;
+          break;
+        }
+        minRemaining = Math.min(minRemaining, targetSlot.remaining);
+      }
+
+      return {
+        ...slot,
+        available: isConsecAvailable,
+        remaining: minRemaining,
+      };
+    });
+  };
+
+  if (created) {
+    return (
+      <div className="min-h-[100dvh] bg-[hsl(var(--background))]">
+        <PublicHeader />
+        <div className="mx-auto max-w-lg px-4 py-12 sm:py-20">
+          <Card className="paper-shadow overflow-hidden border-0">
+            <div className="h-2 bg-[hsl(var(--secondary))]" />
+            <div className="p-6 text-center sm:p-10">
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[hsl(var(--secondary))]/10 text-[hsl(var(--secondary))]"><CheckCircle2 size={32} /></div>
+              <p className="mono-label mt-6 text-[10px] text-[hsl(var(--secondary))] font-bold">Registration received</p>
+              <h1 className="display-serif mt-3 text-3xl font-bold">Keep this token safe</h1>
+              <div className={`mt-7 rounded-2xl p-5 text-white ${created.token.startsWith('VVIP-') ? 'bg-amber-600 shadow-amber-600/30 shadow-lg' : 'bg-[hsl(var(--secondary))]'}`}>
+                <p className="text-xs text-white/75">{created.token.startsWith('VVIP-') ? '🌟 VVIP Priority Token' : 'Your Sampark token'}</p>
+                <p className="mt-2 font-mono text-4xl font-bold tracking-[.18em]" data-testid="text-created-token">{created.token}</p>
+              </div>
+              <p className="mt-6 text-sm leading-6 text-[hsl(var(--muted-foreground))] font-medium">Please present this token at the entrance desk. You can follow your queue position online.</p>
+              <div className="mt-6 flex flex-col gap-3">
+                <Link href={`/status/${created.token}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] text-sm font-bold text-white shadow-md hover:opacity-90" data-testid="link-view-created-status">View live status <ArrowRight size={16} /></Link>
+                <Link href="/" className="inline-flex h-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] text-sm font-bold text-[hsl(var(--secondary))] transition hover:bg-[hsl(var(--muted))]" data-testid="link-return-home">Return to Home</Link>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const stepsList = ['Your details', 'Visit plan', 'Confirm'];
+  
+  return (
+    <div className="min-h-[100dvh] bg-[hsl(var(--background))]">
+      <PublicHeader />
+      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+        <div className="mb-8">
+          <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-book-back"><ChevronRight className="rotate-180" size={15} /> Back to Home</Link>
+          <p className="mono-label mt-8 text-[10px] text-[hsl(var(--primary))] font-bold">New registration</p>
+          <h1 className="display-serif mt-2 text-3xl font-bold sm:text-4xl">Let us understand your visit.</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">A few details help the office prepare. Your mobile number is used to look up and track your token status.</p>
+        </div>
+
+        <div className="mb-7 flex items-center gap-2">
+          {stepsList.map((label, i) => (
+            <div key={label} className="flex flex-1 items-center gap-2" data-testid={`step-${i + 1}`}>
+              <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold ${step > i + 1 ? 'bg-[hsl(var(--secondary))] text-white' : step === i + 1 ? 'bg-[hsl(var(--primary))] text-white' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{step > i + 1 ? <Check size={14} /> : i + 1}</div>
+              <span className={`hidden text-xs font-semibold sm:block ${step === i + 1 ? 'text-[hsl(var(--foreground))]' : 'text-[hsl(var(--muted-foreground))]'}`}>{label}</span>
+              {i < stepsList.length - 1 && <span className="h-px flex-1 bg-[hsl(var(--border))]" />}
+            </div>
+          ))}
+        </div>
+
+        <Card className="paper-shadow border-0 p-5 sm:p-8">
+          {step === 1 && (
+            <div className="space-y-6 animate-rise">
+              <div>
+                <h2 className="font-serif text-xl font-bold">Provide visit details</h2>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Please supply personal and matter details for the CEO briefing card.</p>
+              </div>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Full name" name="fullName" value={String(form.fullName)} onChange={setValue} placeholder="Visitor's name" required />
+                <Field label="Mobile number" name="mobile" value={String(form.mobile)} onChange={setValue} placeholder="10-digit mobile number" type="tel" required />
+                <div className="space-y-2">
+                  <Label htmlFor="taluka" className="text-sm font-semibold">Taluka</Label>
+                  <select id="taluka" name="taluka" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.taluka)} onChange={(e) => setValue('taluka', e.target.value)} data-testid="select-taluka">
+                    <option>Baramati</option>
+                    <option>Indapur</option>
+                    <option>Daund</option>
+                    <option>Shirur</option>
+                    <option>Purandar</option>
+                    <option>Bhor</option>
+                    <option>Velhe</option>
+                    <option>Maval</option>
+                    <option>Mulshi</option>
+                    <option>Haveli</option>
+                    <option>Khed</option>
+                    <option>Ambegaon</option>
+                    <option>Junnar</option>
+                  </select>
+                </div>
+                <Field label="Village / Town / Ward" name="location" value={String(form.location)} onChange={setValue} placeholder="Where do you live?" required />
+                <Field label="Organisation (optional)" name="organisation" value={String(form.organisation)} onChange={setValue} placeholder="If representing an entity" />
+              </div>
+
+              <div>
+                <Label htmlFor="purpose" className="text-sm font-semibold">Subject / Purpose of Visit<span className="ml-1 text-[hsl(var(--primary))]*">*</span></Label>
+                <Input id="purpose" name="purpose" value={String(form.purpose)} onChange={(e) => setValue('purpose', e.target.value)} placeholder="Brief title of your request" className="mt-2" required data-testid="input-purpose" />
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="category" className="text-sm font-semibold">Grievance Category</Label>
+                  <select id="category" name="category" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.category)} onChange={(e) => setValue('category', e.target.value)} data-testid="select-category">
+                    <option>Grievance</option>
+                    <option>Government Scheme</option>
+                    <option>Education</option>
+                    <option>Health</option>
+                    <option>Water / Sanitation</option>
+                    <option>Rural Development</option>
+                    <option>Employment / Skill Development</option>
+                    <option>Infrastructure / Roads</option>
+                    <option>SHG / Livelihood</option>
+                    <option>Agriculture</option>
+                    <option>Administrative Matter</option>
+                    <option>Proposal / Partnership</option>
+                    <option>Personal Appointment</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="department" className="text-sm font-semibold">Concerned Department</Label>
+                  <select id="department" name="department" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.department)} onChange={(e) => setValue('department', e.target.value)} data-testid="select-department">
+                    <option>General Administration</option>
+                    <option>Rural Development</option>
+                    <option>Revenue</option>
+                    <option>Education</option>
+                    <option>Health</option>
+                    <option>Water & Sanitation</option>
+                    <option>Women & Child Development</option>
+                    <option>Agriculture</option>
+                    <option>Finance</option>
+                    <option>Works (Roads & Infra)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description" className="text-sm font-semibold">Briefly explain your request (Max 250 characters)<span className="ml-1 text-[hsl(var(--primary))]*">*</span></Label>
+                <Textarea id="description" value={String(form.description)} onChange={(e) => setValue('description', e.target.value)} maxLength={250} placeholder="Provide short details for the CEO card summary..." required data-testid="textarea-description" />
+                <p className="text-right text-xs text-[hsl(var(--muted-foreground))]">{String(form.description).length}/250</p>
+              </div>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[hsl(var(--border))] p-4">
+                <input type="checkbox" checked={Boolean(form.previouslyApproached)} onChange={(e) => setValue('previouslyApproached', e.target.checked)} className="mt-1 h-4 w-4 accent-[hsl(var(--primary))]" data-testid="input-previously-approached" />
+                <span>
+                  <span className="block text-sm font-semibold">Have you approached the concerned department earlier?</span>
+                  <span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">This helps the CEO trace past files and officers involved.</span>
+                </span>
+              </label>
+
+              {Boolean(form.previouslyApproached) && (
+                <div className="grid gap-5 rounded-xl bg-[hsl(var(--muted))]/60 p-4 sm:grid-cols-3">
+                  <Field label="Department Officer" name="previousDepartment" value={String(form.previousDepartment)} onChange={setValue} placeholder="Name of officer" />
+                  <Field label="Previous Date" name="previousDate" value={String(form.previousDate)} onChange={setValue} type="date" />
+                  <Field label="Reference / Application ID" name="previousReference" value={String(form.previousReference)} onChange={setValue} placeholder="e.g. ZP/REVENUE/2026/12" />
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <Link href="/" className="inline-flex h-10 items-center justify-center rounded-md border border-[hsl(var(--border))] px-4 text-sm font-semibold text-[hsl(var(--secondary))] transition hover:bg-[hsl(var(--muted))]">Cancel</Link>
+                <Button type="button" onClick={() => setStep(2)} disabled={!form.fullName || !form.mobile || String(form.mobile).length < 10 || !form.location || !form.purpose || !form.description} data-testid="button-next-visit-plan">Continue <ArrowRight size={16} /></Button>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-6 animate-rise">
+              <div>
+                <h2 className="font-serif text-xl font-bold">Appointment type & scheduling</h2>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Choose to book an appointment slot or enter the walk-in queue today.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[{ value: 'appointment', title: 'Book an Appointment', text: 'Secure a date and consecutive 5-minute slots.' },
+                  { value: 'walk_in', title: 'Register as a Walk-in', text: 'Register in the live token queue at the office.' }].map((item) => (
+                  <button type="button" key={item.value} onClick={() => setValue('visitType', item.value)} className={`rounded-xl border p-4 text-left transition ${form.visitType === item.value ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/7 ring-1 ring-[hsl(var(--primary))]' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}`} data-testid={`button-visit-type-${item.value}`}>
+                    <div className="flex items-center justify-between"><span className="font-semibold text-sm">{item.title}</span>{form.visitType === item.value && <CheckCircle2 size={17} className="text-[hsl(var(--primary))]" />}</div>
+                    <p className="mt-1 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{item.text}</p>
+                  </button>
+                ))}
+              </div>
+
+              {form.visitType === 'appointment' && (
+                <div className="rounded-2xl bg-[hsl(var(--muted))]/65 p-4 sm:p-5 space-y-5 animate-rise">
+                  <div className="grid gap-5 sm:grid-cols-[200px_1fr]">
+                    <div className="space-y-3">
+                      <Label htmlFor="appointmentDate" className="text-sm font-semibold">Preferred date</Label>
+                      <Input id="appointmentDate" type="date" min={today()} value={String(form.appointmentDate)} onChange={(e) => { setValue('appointmentDate', e.target.value); setDate(e.target.value); }} data-testid="input-appointment-date" />
+
+                      <Label htmlFor="appointmentDuration" className="text-sm font-semibold mt-4 block">Meeting Duration</Label>
+                      <select id="appointmentDuration" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={Number(form.appointmentDuration)} onChange={(e) => { setValue('appointmentDuration', Number(e.target.value)); setValue('appointmentSlot', ''); }} data-testid="select-duration">
+                        <option value={5}>5 Minutes (1 slot)</option>
+                        <option value={10}>10 Minutes (2 slots)</option>
+                        <option value={15}>15 Minutes (3 slots max)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-semibold">Available slots ({form.appointmentDuration} mins)</Label>
+                      {availability.isLoading ? (
+                        <div className="mt-3 grid grid-cols-2 gap-2"><LoadingBlock lines={1} /><LoadingBlock lines={1} /></div>
+                      ) : availability.isError ? (
+                        <p className="mt-3 text-sm text-[hsl(var(--destructive))]">Slots unavailable. You can register as a walk-in.</p>
+                      ) : (
+                        <div className="mt-3 grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                          {getFilteredSlots().map((slot) => (
+                            <button type="button" key={slot.id} disabled={!slot.available} onClick={() => setValue('appointmentSlot', slot.id)} className={`rounded-lg border px-3 py-2 text-left text-xs font-semibold transition ${form.appointmentSlot === slot.id ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-white' : slot.available ? 'border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/5' : 'cursor-not-allowed border-transparent bg-[hsl(var(--background))] text-[hsl(var(--muted-foreground))] line-through opacity-40'}`} data-testid={`button-slot-${slot.id}`}>
+                              <span>{slot.label}</span>
+                              <span className="mt-0.5 block text-[9px] opacity-75">{slot.available ? `${slot.remaining} seats` : 'Full'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label className="text-sm font-semibold">Priority status (Manually selected or automatically audited)</Label>
+                <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                  {[{ value: 'normal', label: 'Standard', text: 'Standard queue' },
+                    { value: 'priority', label: 'Priority', text: 'Urgent citizen concern' },
+                    { value: 'official', label: 'Official', text: 'Elected reps / officers' },
+                    { value: 'vvip', label: '🌟 VVIP', text: 'High dignitary status' }].map((item) => (
+                    <button type="button" key={item.value} onClick={() => setValue('priority', item.value)} className={`rounded-xl border p-3 text-left transition ${form.priority === item.value ? 'border-[hsl(var(--secondary))] bg-[hsl(var(--secondary))]/8' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}`} data-testid={`button-priority-${item.value}`}>
+                      <span className="block text-sm font-semibold">{item.label}</span>
+                      <span className="mt-1 block text-[10px] text-[hsl(var(--muted-foreground))]">{item.text}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-between">
+                <Button type="button" variant="outline" onClick={() => setStep(1)}>Back</Button>
+                <Button type="button" onClick={() => setStep(3)} disabled={form.visitType === 'appointment' && !form.appointmentSlot} data-testid="button-next-confirm">Review registration <ArrowRight size={16} /></Button>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <form onSubmit={submit} className="space-y-6 animate-rise" data-testid="form-visit-registration">
+              <div>
+                <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Final check</p>
+                <h2 className="display-serif mt-2 text-2xl font-bold">Please review your details</h2>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Ensure everything is correct. The CEO briefing card is generated directly from this form.</p>
+              </div>
+
+              <div className="divide-y divide-[hsl(var(--border))] rounded-xl border border-[hsl(var(--border))]">
+                {[
+                  ['Visitor Name', form.fullName],
+                  ['Mobile number', form.mobile],
+                  ['Taluka / Location', `${form.taluka} / ${form.location}`],
+                  ['Concerned Dept.', form.department],
+                  ['Visit Category', form.category],
+                  ['Subject / Purpose', form.purpose],
+                  ['Priority Level', form.priority],
+                  ['Visit Type', form.visitType === 'appointment' ? `Appointment · ${dateLabel(String(form.appointmentDate))}` : 'Walk-in Today'],
+                  ['Duration / Time', form.visitType === 'appointment' ? `${form.appointmentDuration} min meeting at ${availability.data?.slots.find((slot) => slot.id === form.appointmentSlot)?.label ?? 'Selected slot'}` : 'Live Queue (Immediate check-in)'],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                    <span className="text-[hsl(var(--muted-foreground))] font-semibold">{label}</span>
+                    <span className="text-right font-bold capitalize" data-testid={`text-review-${String(label).toLowerCase().replaceAll(' ', '-')}`}>{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {error && <p className="rounded-lg bg-[hsl(var(--destructive))]/8 p-3 text-sm text-[hsl(var(--destructive))] font-semibold" data-testid="status-registration-error">{error}</p>}
+
+              <div className="flex justify-between">
+                <Button type="button" variant="outline" onClick={() => setStep(2)}>Back</Button>
+                <Button type="submit" disabled={createVisit.isPending} data-testid="button-submit-registration" className="bg-[hsl(var(--secondary))] text-white">
+                  {createVisit.isPending ? 'Registering…' : 'Confirm and get token'} <Check size={16} />
+                </Button>
+              </div>
+            </form>
+          )}
+        </Card>
+      </main>
+    </div>
+  );
 }
 
 function Status() {
@@ -209,13 +639,220 @@ function Status() {
   const activeToken = token === 'lookup' ? lookup.trim() : token;
   const status = useGetVisitStatus(activeToken, { query: { enabled: activeToken.length > 2, queryKey: getGetVisitStatusQueryKey(activeToken), refetchInterval: 10000 } });
   const visit = status.data;
-  const submitLookup = (e: React.FormEvent) => { e.preventDefault(); };
-  return <div className="min-h-[100dvh] bg-[hsl(var(--background))]"><PublicHeader /><main className="mx-auto max-w-2xl px-4 py-10 sm:py-16"><Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-status-back"><ChevronRight className="rotate-180" size={15} /> Back to Sampark</Link>{token === 'lookup' && <Card className="paper-shadow mt-8 border-0 p-6 sm:p-8"><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Find your registration</p><h1 className="display-serif mt-2 text-3xl font-bold">Enter your token</h1><p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Your token was shown after registration and is also available at the office desk.</p><form className="mt-6 flex gap-2" onSubmit={submitLookup}><Input value={lookup} onChange={(e) => setLookup(e.target.value.toUpperCase())} placeholder="For example, ZP-042" className="font-mono uppercase" data-testid="input-status-token" /><Button type="submit" disabled={lookup.length < 3} data-testid="button-find-status">Find token <Search size={16} /></Button></form></Card>}{activeToken.length > 2 && <div className="mt-8">{status.isLoading && <Card className="border-0 p-6"><LoadingBlock lines={5} /></Card>}{status.isError && <QueryError retry={() => status.refetch()} />}{visit && <Card className="paper-shadow overflow-hidden border-0"><div className="h-2 bg-[hsl(var(--secondary))]" /><div className="p-6 sm:p-8"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Token status</p><p className="mt-2 font-mono text-3xl font-bold tracking-wider" data-testid="text-status-token">{visit.token}</p><p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Registered for {visit.fullName}</p></div><Badge className="w-fit bg-[hsl(var(--secondary))] px-3 py-1.5 text-white" data-testid="status-visit-state">{visit.status.replaceAll('_', ' ')}</Badge></div><div className="mt-8 grid grid-cols-3 gap-2 rounded-xl bg-[hsl(var(--muted))]/60 p-4 text-center"><div><p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))]">Position</p><p className="mt-2 font-serif text-2xl font-bold" data-testid="text-status-position">{visit.queuePosition || '—'}</p></div><div className="border-x border-[hsl(var(--border))]"><p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))]">Est. wait</p><p className="mt-2 font-serif text-2xl font-bold" data-testid="text-status-wait">{visit.estimatedWait ? `${visit.estimatedWait}m` : '—'}</p></div><div><p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))]">Visit</p><p className="mt-2 text-sm font-bold" data-testid="text-status-visit-date">{visit.visitType === 'appointment' ? dateLabel(visit.appointmentDate) : 'Walk-in'}</p></div></div><div className="mt-8"><p className="mono-label text-[10px] text-[hsl(var(--muted-foreground))]">What happens next</p><div className="mt-4 space-y-4">{[['Registration received', true], ['Queue position confirmed', ['waiting', 'called', 'in_progress', 'completed'].includes(visit.status)], ['Meeting / desk review', ['called', 'in_progress', 'completed'].includes(visit.status)], ['Outcome recorded', visit.status === 'completed']].map(([label, done], i) => <div className="flex items-center gap-3" key={String(label)} data-testid={`status-timeline-${i + 1}`}><div className={`grid h-7 w-7 place-items-center rounded-full ${done ? 'bg-[hsl(var(--secondary))] text-white' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{done ? <Check size={14} /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</div><span className={`text-sm ${done ? 'font-semibold' : 'text-[hsl(var(--muted-foreground))]'}`}>{label}</span></div>)}</div>{visit.outcome && <div className="mt-8 rounded-xl border border-[hsl(var(--secondary))]/25 bg-[hsl(var(--secondary))]/5 p-4"><p className="mono-label text-[9px] text-[hsl(var(--secondary))]">Recorded outcome</p><p className="mt-2 font-semibold capitalize" data-testid="text-status-outcome">{visit.outcome.replaceAll('_', ' ')}</p>{visit.notes && <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{visit.notes}</p>}{visit.referenceNumber && <p className="mt-3 font-mono text-xs">Reference: {visit.referenceNumber}</p>}</div>}<p className="mt-8 text-xs leading-5 text-[hsl(var(--muted-foreground))]">This page updates when the office records a change. If you need help, please show your token at the Sampark desk.</p></div></div></Card>}</div>}</main></div>;
+
+  const submitLookup = (e: React.FormEvent) => {
+    e.preventDefault();
+  };
+
+  return (
+    <div className="min-h-[100dvh] bg-[hsl(var(--background))]">
+      <PublicHeader />
+      <main className="mx-auto max-w-2xl px-4 py-10 sm:py-16">
+        <Link href="/" className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(var(--muted-foreground))]" data-testid="link-status-back"><ChevronRight className="rotate-180" size={15} /> Back to Home</Link>
+
+        {token === 'lookup' && (
+          <Card className="paper-shadow mt-8 border-0 p-6 sm:p-8">
+            <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Find your registration</p>
+            <h1 className="display-serif mt-2 text-3xl font-bold">Enter your token</h1>
+            <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Your token was shown after registration and is also available at the office desk.</p>
+            <form className="mt-6 flex gap-2" onSubmit={submitLookup}>
+              <Input value={lookup} onChange={(e) => setLookup(e.target.value.toUpperCase())} placeholder="e.g. CEO-001 or VVIP-002" className="font-mono uppercase tracking-widest text-lg" data-testid="input-status-token" />
+              <Button type="submit" disabled={lookup.length < 3} data-testid="button-find-status">Find token <Search size={16} /></Button>
+            </form>
+          </Card>
+        )}
+
+        {activeToken.length > 2 && (
+          <div className="mt-8">
+            {status.isLoading && <Card className="border-0 p-6"><LoadingBlock lines={5} /></Card>}
+            {status.isError && <QueryError retry={() => status.refetch()} />}
+            {visit && (
+              <Card className="paper-shadow overflow-hidden border-0">
+                <div className={`h-2 ${visit.token.startsWith('VVIP-') ? 'bg-amber-600' : 'bg-[hsl(var(--secondary))]'}`} />
+                <div className="p-6 sm:p-8">
+                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Token status</p>
+                        {visit.priority === 'vvip' && <Badge className="bg-amber-600 text-white text-[9px] px-1.5 py-0">🌟 VVIP</Badge>}
+                      </div>
+                      <p className="mt-2 font-mono text-3xl font-bold tracking-wider" data-testid="text-status-token">{visit.token}</p>
+                      <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))] font-semibold">Registered for {visit.fullName}</p>
+                    </div>
+                    <Badge className={`w-fit px-3 py-1.5 text-white capitalize ${visit.token.startsWith('VVIP-') ? 'bg-amber-600' : 'bg-[hsl(var(--secondary))]'}`} data-testid="status-visit-state">{visit.status.replaceAll('_', ' ')}</Badge>
+                  </div>
+
+                  <div className="mt-8 grid grid-cols-3 gap-2 rounded-xl bg-[hsl(var(--muted))]/60 p-4 text-center">
+                    <div>
+                      <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">Queue Pos.</p>
+                      <p className="mt-2 font-serif text-2xl font-bold" data-testid="text-status-position">{visit.status === 'waiting' ? visit.queuePosition : '—'}</p>
+                    </div>
+                    <div className="border-x border-[hsl(var(--border))]">
+                      <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">Est. wait</p>
+                      <p className="mt-2 font-serif text-2xl font-bold" data-testid="text-status-wait">
+                        {visit.status === 'waiting' ? (visit.token.startsWith('VVIP-') ? '~5m' : `${(visit.queuePosition ?? 1) * 5}m`) : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">Visit</p>
+                      <p className="mt-2 text-xs font-bold" data-testid="text-status-visit-date">{visit.visitType === 'appointment' ? dateLabel(visit.appointmentDate) : 'Walk-in'}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8">
+                    <p className="mono-label text-[10px] text-[hsl(var(--muted-foreground))] font-bold">What happens next</p>
+                    <div className="mt-4 space-y-4">
+                      {[
+                        ['Registration received', true],
+                        ['Queue position confirmed', ['waiting', 'called', 'held', 'completed'].includes(visit.status)],
+                        ['Meeting / desk review', ['called', 'completed'].includes(visit.status)],
+                        ['Outcome recorded', visit.status === 'completed']
+                      ].map(([label, done], i) => (
+                        <div className="flex items-center gap-3" key={String(label)} data-testid={`status-timeline-${i + 1}`}>
+                          <div className={`grid h-7 w-7 place-items-center rounded-full ${done ? (visit.token.startsWith('VVIP-') ? 'bg-amber-600 text-white' : 'bg-[hsl(var(--secondary))] text-white') : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{done ? <Check size={14} /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</div>
+                          <span className={`text-sm ${done ? 'font-semibold' : 'text-[hsl(var(--muted-foreground))]'}`}>{label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {visit.outcome && (
+                      <div className="mt-8 rounded-xl border border-[hsl(var(--secondary))]/25 bg-[hsl(var(--secondary))]/5 p-5 animate-rise">
+                        <p className="mono-label text-[9px] text-[hsl(var(--secondary))] font-bold">Recorded outcome</p>
+                        <p className="mt-2 font-serif font-bold text-lg capitalize text-[hsl(var(--secondary))]" data-testid="text-status-outcome">{visit.outcome.replaceAll('_', ' ')}</p>
+                        {visit.notes && <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))] bg-white border border-[hsl(var(--border))] rounded-lg p-3 italic">"{visit.notes}"</p>}
+                        {visit.referredTo && <p className="mt-2 text-xs font-semibold">Referred to: <span className="text-[hsl(var(--primary))]">{visit.referredTo}</span></p>}
+                        {visit.referenceNumber && <p className="mt-4 font-mono text-[11px] text-[hsl(var(--muted-foreground))]">Reference number: {visit.referenceNumber}</p>}
+                      </div>
+                    )}
+
+                    <p className="mt-8 text-xs leading-5 text-[hsl(var(--muted-foreground))]">This status page updates live as the desk records updates. For support, please approach the PA help desk with your token.</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
 }
 
+// ---------------------------------------------------------------------------
+// Login Page
+// ---------------------------------------------------------------------------
+
+function Login() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [, setLocation] = useLocation();
+  const query = new URLSearchParams(window.location.search);
+  const redirect = query.get('redirect') || '/office';
+
+  const loginMutation = useLogin();
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+
+    loginMutation.mutate({
+      data: { username, password }
+    }, {
+      onSuccess: (result) => {
+        localStorage.setItem('zp_session_token', result.token);
+        localStorage.setItem('zp_user_role', result.role);
+        localStorage.setItem('zp_user_name', result.username);
+        localStorage.setItem('zp_user_fullname', result.fullName);
+        setLocation(redirect);
+      },
+      onError: (err: any) => {
+        setLoginError(err?.message || 'Login failed. Please check credentials and try again.');
+      }
+    });
+  };
+
+  return (
+    <div className="min-h-[100dvh] flex flex-col bg-[hsl(var(--background))]">
+      <PublicHeader />
+      <div className="flex-1 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md paper-shadow overflow-hidden border-0">
+          <div className="h-2 bg-[hsl(var(--primary))]" />
+          <form onSubmit={handleLogin} className="p-6 sm:p-8 space-y-6">
+            <div className="text-center">
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--primary))]">
+                <Lock size={20} />
+              </div>
+              <h1 className="display-serif mt-4 text-2xl font-bold">Office Login</h1>
+              <p className="mt-1.5 text-xs text-[hsl(var(--muted-foreground))]">Authentication is required to access queue operations and dashboard panels.</p>
+            </div>
+
+            {loginError && (
+              <div className="rounded-lg bg-[hsl(var(--destructive))]/8 p-3 text-xs text-[hsl(var(--destructive))] font-semibold">
+                {loginError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-xs font-bold uppercase">Username</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-3 text-[hsl(var(--muted-foreground))]"><UsersRound size={15} /></span>
+                  <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} className="pl-9" placeholder="e.g. admin or ceo" required data-testid="input-login-username" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-xs font-bold uppercase">Password</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-3 text-[hsl(var(--muted-foreground))]"><Key size={15} /></span>
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-9" placeholder="••••••••" required data-testid="input-login-password" />
+                </div>
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full shadow-sm" disabled={loginMutation.isPending}>
+              {loginMutation.isPending ? 'Authenticating…' : 'Sign In to Portal'}
+            </Button>
+
+            <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/40 p-3 space-y-1">
+              <p className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase">Default roles for testing</p>
+              <div className="grid grid-cols-2 gap-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
+                <span>Admin: <span className="font-mono font-bold">admin / admin123</span></span>
+                <span>CEO: <span className="font-mono font-bold">ceo / ceo123</span></span>
+                <span>PA/Desk: <span className="font-mono font-bold">reception / reception123</span></span>
+                <span>Officer: <span className="font-mono font-bold">officer / officer123</span></span>
+              </div>
+            </div>
+          </form>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Protected Staff Pages
+// ---------------------------------------------------------------------------
+
 function SummaryCards({ summary }: { summary: DashboardSummary }) {
-  const items = [{ label: 'Registered today', value: summary.registered, icon: UsersRound, tone: 'primary' }, { label: 'Waiting now', value: summary.waiting, icon: Clock3, tone: 'green' }, { label: 'Completed', value: summary.completed, icon: CheckCircle2, tone: 'ink' }, { label: 'Average wait', value: `${summary.averageWait}m`, icon: Activity, tone: 'gold' }];
-  return <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{items.map(({ label, value, icon: Icon, tone }) => <Card key={label} className="border-0 p-4 paper-shadow" data-testid={`card-summary-${label.toLowerCase().replaceAll(' ', '-')}`}><div className={`grid h-9 w-9 place-items-center rounded-lg ${tone === 'primary' ? 'bg-[hsl(var(--primary))]/12 text-[hsl(var(--primary))]' : tone === 'green' ? 'bg-[hsl(var(--secondary))]/12 text-[hsl(var(--secondary))]' : tone === 'gold' ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--secondary))]'}`}><Icon size={18} /></div><p className="mt-5 font-serif text-3xl font-bold" data-testid={`text-summary-${label.toLowerCase().replaceAll(' ', '-')}`}>{value}</p><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{label}</p></Card>)}</div>;
+  const items = [
+    { label: 'Registered today', value: summary.registered, icon: UsersRound, tone: 'primary' },
+    { label: 'Waiting now', value: summary.waiting, icon: Clock3, tone: 'green' },
+    { label: 'Completed', value: summary.completed, icon: CheckCircle2, tone: 'ink' },
+    { label: 'Average wait', value: `${summary.averageWait}m`, icon: Activity, tone: 'gold' }
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {items.map(({ label, value, icon: Icon, tone }) => (
+        <Card key={label} className="border-0 p-4 paper-shadow" data-testid={`card-summary-${label.toLowerCase().replaceAll(' ', '-')}`}>
+          <div className={`grid h-9 w-9 place-items-center rounded-lg ${tone === 'primary' ? 'bg-[hsl(var(--primary))]/12 text-[hsl(var(--primary))]' : tone === 'green' ? 'bg-[hsl(var(--secondary))]/12 text-[hsl(var(--secondary))]' : tone === 'gold' ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--secondary))]'}`}><Icon size={18} /></div>
+          <p className="mt-5 font-serif text-3xl font-bold" data-testid={`text-summary-${label.toLowerCase().replaceAll(' ', '-')}`}>{value}</p>
+          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))] font-semibold">{label}</p>
+        </Card>
+      ))}
+    </div>
+  );
 }
 
 function Office() {
@@ -225,56 +862,733 @@ function Office() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [outcome, setOutcome] = useState('resolved');
   const [notes, setNotes] = useState('');
+  const [referredTo, setReferredTo] = useState('General Administration');
   const [followUpDate, setFollowUpDate] = useState('');
+
   const selected = useGetOfficeVisit(selectedId ?? 0, { query: { enabled: selectedId !== null, queryKey: getGetOfficeVisitQueryKey(selectedId ?? 0) } });
   const queueAction = useUpdateQueueAction();
   const saveOutcome = useSaveVisitOutcome();
-  const refresh = () => { dashboard.refetch(); queue.refetch(); };
-  const act = (id: number, action: QueueActionInput['action']) => queueAction.mutate({ id, data: { action } }, { onSuccess: () => { client.invalidateQueries({ queryKey: getGetOfficeDashboardQueryKey() }); client.invalidateQueries({ queryKey: getGetOfficeQueueQueryKey() }); client.invalidateQueries({ queryKey: getGetOfficeVisitQueryKey(id) }); } });
-  const save = (e: React.FormEvent) => { e.preventDefault(); if (selectedId === null) return; saveOutcome.mutate({ id: selectedId, data: { outcome: outcome as OutcomeInput['outcome'], notes: notes || null, referredTo: null, followUpDate: followUpDate || null } }, { onSuccess: () => { client.invalidateQueries({ queryKey: getGetOfficeDashboardQueryKey() }); client.invalidateQueries({ queryKey: getGetOfficeQueueQueryKey() }); client.invalidateQueries({ queryKey: getGetOfficeVisitQueryKey(selectedId) }); client.invalidateQueries({ queryKey: getGetOfficeAnalyticsQueryKey() }); } }); };
-  return <OfficeShell title="Good morning, PA desk" eyebrow="Live operations"><div className="space-y-6"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">A focused view of who is waiting, who is next, and what needs to be closed today.</p></div><Button variant="outline" onClick={refresh} data-testid="button-refresh-office"><RefreshCcw size={15} /> Refresh queue</Button></div>{dashboard.isLoading ? <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{[1, 2, 3, 4].map((i) => <Card key={i} className="h-32 border-0 p-4"><LoadingBlock lines={3} /></Card>)}</div> : dashboard.isError ? <QueryError retry={() => dashboard.refetch()} /> : dashboard.data && <SummaryCards summary={dashboard.data} />}<div className="grid gap-6 xl:grid-cols-[1fr_380px]"><Card className="border-0 paper-shadow"><div className="flex items-center justify-between border-b border-[hsl(var(--border))] p-5"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Live queue</p><h2 className="mt-1 font-serif text-xl font-bold">Who needs attention</h2></div><Badge variant="outline" data-testid="status-queue-count">{queue.data?.length ?? 0} visitors</Badge></div>{queue.isLoading ? <div className="space-y-4 p-5"><LoadingBlock lines={5} /></div> : queue.isError ? <div className="p-5"><QueryError retry={() => queue.refetch()} /></div> : queue.data?.length ? <div className="divide-y divide-[hsl(var(--border))]">{queue.data.map((entry, index) => <button className={`flex w-full items-center gap-3 p-4 text-left transition hover:bg-[hsl(var(--muted))]/60 ${selectedId === entry.id ? 'bg-[hsl(var(--primary))]/6' : ''}`} key={entry.id} onClick={() => setSelectedId(entry.id)} data-testid={`row-queue-entry-${entry.id}`}><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[hsl(var(--secondary))] font-mono text-xs font-bold text-white">{entry.token.replace('ZP-', '')}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="truncate text-sm font-bold">{entry.fullName}</span>{entry.priority !== 'normal' && <Badge className="bg-[hsl(var(--primary))]/12 px-1.5 py-0 text-[9px] text-[hsl(var(--primary))]">{entry.priority}</Badge>}</span><span className="mt-1 block truncate text-xs text-[hsl(var(--muted-foreground))]">{entry.purpose} · {entry.department}</span></span><span className="text-right"><span className="block font-mono text-xs font-bold text-[hsl(var(--primary))]">{entry.waitingMinutes}m</span><span className="mt-1 block text-[10px] text-[hsl(var(--muted-foreground))]">{entry.status.replaceAll('_', ' ')}</span></span><ChevronRight size={16} className="text-[hsl(var(--muted-foreground))]" /></button>)}</div> : <div className="p-10 text-center"><CheckCircle2 className="mx-auto text-[hsl(var(--secondary))]" size={28} /><p className="mt-3 font-semibold">The queue is clear</p><p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">New registrations will appear here.</p></div>}</Card><div className="space-y-6">{dashboard.data?.nowMeeting && <Card className="overflow-hidden border-0 bg-[hsl(var(--secondary))] text-white paper-shadow"><div className="border-b border-white/10 px-5 py-4"><p className="mono-label text-[9px] text-[hsl(var(--primary))]">In the room now</p></div><div className="p-5"><p className="font-serif text-2xl font-bold" data-testid="text-now-meeting">{dashboard.data.nowMeeting.fullName}</p><p className="mt-2 text-sm text-white/60">{dashboard.data.nowMeeting.purpose}</p><div className="mt-5 flex items-center gap-2 text-xs text-white/60"><MapPin size={14} /> {dashboard.data.nowMeeting.location || 'Location not recorded'}</div></div></Card>}<Card className="border-0 paper-shadow"><div className="p-5"><div className="flex items-center justify-between"><div><p className="mono-label text-[10px] text-[hsl(var(--secondary))]">Up next</p><h2 className="mt-1 font-serif text-lg font-bold">Prepare the room</h2></div><Bell size={18} className="text-[hsl(var(--primary))]" /></div><div className="mt-5 space-y-3">{(dashboard.data?.nextVisitors ?? []).slice(0, 3).map((visitor, i) => <div className="flex items-center gap-3" key={visitor.id} data-testid={`card-next-visitor-${visitor.id}`}><span className="font-mono text-xs text-[hsl(var(--primary))]">{String(i + 1).padStart(2, '0')}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{visitor.fullName}</p><p className="truncate text-xs text-[hsl(var(--muted-foreground))]">{visitor.purpose}</p></div><span className="text-xs text-[hsl(var(--muted-foreground))]">{visitor.waitingMinutes}m</span></div>)}{!dashboard.data?.nextVisitors?.length && <p className="text-sm text-[hsl(var(--muted-foreground))]">No visitors waiting after the current queue.</p>}</div></div></Card></div></div>{selectedId !== null && <Card className="border-0 bg-[hsl(var(--card))] paper-shadow"><div className="flex items-center justify-between border-b border-[hsl(var(--border))] p-5"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Visitor briefing</p><h2 className="mt-1 font-serif text-xl font-bold">{selected.isLoading ? 'Loading record…' : selected.data?.fullName ?? 'Selected visitor'}</h2></div><button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" onClick={() => setSelectedId(null)} data-testid="button-close-visitor-briefing"><X size={18} /></button></div>{selected.isLoading ? <div className="p-5"><LoadingBlock lines={4} /></div> : selected.data && <div className="grid gap-6 p-5 lg:grid-cols-[1fr_1fr]"><div><p className="text-sm leading-6 text-[hsl(var(--muted-foreground))]">{selected.data.description}</p><div className="mt-5 grid grid-cols-2 gap-4 text-sm"><div><p className="text-xs text-[hsl(var(--muted-foreground))]">Token</p><p className="mt-1 font-mono font-bold" data-testid="text-briefing-token">{selected.data.token}</p></div><div><p className="text-xs text-[hsl(var(--muted-foreground))]">Mobile</p><p className="mt-1 font-semibold" data-testid="text-briefing-mobile">{selected.data.mobile}</p></div><div><p className="text-xs text-[hsl(var(--muted-foreground))]">Taluka / location</p><p className="mt-1 font-semibold">{selected.data.taluka}, {selected.data.location}</p></div><div><p className="text-xs text-[hsl(var(--muted-foreground))]">Previous visits</p><p className="mt-1 font-semibold">{selected.data.previousVisits ?? 0}</p></div></div><div className="mt-6 flex flex-wrap gap-2">{(['call', 'check_in', 'hold', 'no_show'] as QueueActionInput['action'][]).map((action) => <Button key={action} variant={action === 'call' ? 'default' : 'outline'} size="sm" onClick={() => act(selected.data!.id, action)} disabled={queueAction.isPending} data-testid={`button-queue-action-${action}`}><span className="capitalize">{action.replace('_', ' ')}</span></Button>)}</div></div><form className="rounded-xl bg-[hsl(var(--muted))]/60 p-4" onSubmit={save} data-testid="form-visit-outcome"><p className="text-sm font-bold">Close the visit</p><div className="mt-4 space-y-3"><Label htmlFor="outcome">Outcome</Label><select id="outcome" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={outcome} onChange={(e) => setOutcome(e.target.value)} data-testid="select-outcome"><option value="resolved">Resolved</option><option value="referred">Referred to department</option><option value="action_required">Action required</option><option value="information_provided">Information provided</option><option value="rescheduled">Rescheduled</option><option value="rejected">Rejected</option><option value="follow_up">Follow-up required</option></select><Label htmlFor="outcome-notes">Notes</Label><Textarea id="outcome-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Record the clear next step" data-testid="textarea-outcome-notes" /><Label htmlFor="follow-up-date">Follow-up date (optional)</Label><Input id="follow-up-date" type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} data-testid="input-follow-up-date" /><Button type="submit" className="w-full" disabled={saveOutcome.isPending} data-testid="button-save-outcome">{saveOutcome.isPending ? 'Saving…' : 'Save outcome'} <Check size={15} /></Button></div></form></div>}</Card>}</div></OfficeShell>;
+
+  const refresh = () => {
+    dashboard.refetch();
+    queue.refetch();
+  };
+
+  const act = (id: number, action: QueueActionInput['action']) => {
+    queueAction.mutate({ id, data: { action } }, {
+      onSuccess: () => {
+        client.invalidateQueries({ queryKey: getGetOfficeDashboardQueryKey() });
+        client.invalidateQueries({ queryKey: getGetOfficeQueueQueryKey() });
+        client.invalidateQueries({ queryKey: getGetOfficeVisitQueryKey(id) });
+      }
+    });
+  };
+
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedId === null) return;
+
+    saveOutcome.mutate({
+      id: selectedId,
+      data: {
+        outcome: outcome as OutcomeInput['outcome'],
+        notes: notes || null,
+        referredTo: outcome === 'referred' ? referredTo : null,
+        followUpDate: followUpDate || null
+      }
+    }, {
+      onSuccess: () => {
+        setNotes('');
+        setFollowUpDate('');
+        setSelectedId(null);
+        client.invalidateQueries({ queryKey: getGetOfficeDashboardQueryKey() });
+        client.invalidateQueries({ queryKey: getGetOfficeQueueQueryKey() });
+        client.invalidateQueries({ queryKey: getGetOfficeVisitQueryKey(selectedId) });
+        client.invalidateQueries({ queryKey: getGetOfficeAnalyticsQueryKey() });
+      }
+    });
+  };
+
+  return (
+    <OfficeShell title="CEO Queue Panel" eyebrow="Live operations">
+      <div className="space-y-6">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <p className="max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Monitor live wait lists, check in walk-ins, view briefing files, and dispatch case outcomes.</p>
+          </div>
+          <Button variant="outline" onClick={refresh} data-testid="button-refresh-office" className="shadow-sm"><RefreshCcw size={15} /> Refresh queue</Button>
+        </div>
+
+        {dashboard.isLoading ? (
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{[1, 2, 3, 4].map((i) => <Card key={i} className="h-32 border-0 p-4"><LoadingBlock lines={3} /></Card>)}</div>
+        ) : dashboard.isError ? (
+          <QueryError retry={() => dashboard.refetch()} />
+        ) : (
+          dashboard.data && <SummaryCards summary={dashboard.data} />
+        )}
+
+        <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+          <Card className="border-0 paper-shadow">
+            <div className="flex items-center justify-between border-b border-[hsl(var(--border))] p-5">
+              <div>
+                <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Live queue</p>
+                <h2 className="mt-1 font-serif text-xl font-bold">Active Visitors</h2>
+              </div>
+              <Badge variant="outline" data-testid="status-queue-count" className="font-bold">{queue.data?.length ?? 0} waiting</Badge>
+            </div>
+
+            {queue.isLoading ? (
+              <div className="space-y-4 p-5"><LoadingBlock lines={5} /></div>
+            ) : queue.isError ? (
+              <div className="p-5"><QueryError retry={() => queue.refetch()} /></div>
+            ) : queue.data?.length ? (
+              <div className="divide-y divide-[hsl(var(--border))]">
+                {queue.data.map((entry) => (
+                  <button className={`flex w-full items-center gap-3 p-4 text-left transition hover:bg-[hsl(var(--muted))]/60 ${selectedId === entry.id ? 'bg-[hsl(var(--primary))]/6' : ''}`} key={entry.id} onClick={() => setSelectedId(entry.id)} data-testid={`row-queue-entry-${entry.id}`}>
+                    <span className={`grid h-9 w-12 shrink-0 place-items-center rounded-lg font-mono text-[10px] font-bold text-white uppercase ${entry.token.startsWith('VVIP-') ? 'bg-amber-600' : 'bg-[hsl(var(--secondary))]'}`}>
+                      {entry.token}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-sm font-bold">{entry.fullName}</span>
+                        {entry.priority !== 'normal' && (
+                          <Badge className={`px-1.5 py-0 text-[8px] font-bold uppercase ${entry.priority === 'vvip' ? 'bg-amber-600 text-white' : 'bg-[hsl(var(--primary))]/12 text-[hsl(var(--primary))]'}`}>
+                            {entry.priority}
+                          </Badge>
+                        )}
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-[hsl(var(--muted-foreground))]">{entry.purpose} · <span className="font-semibold">{entry.department}</span></span>
+                    </span>
+                    <span className="text-right shrink-0">
+                      <span className={`block font-mono text-xs font-bold ${entry.token.startsWith('VVIP-') ? 'text-amber-600' : 'text-[hsl(var(--primary))]'}`}>{entry.waitingMinutes}m</span>
+                      <span className="mt-0.5 block text-[10px] text-[hsl(var(--muted-foreground))] capitalize">{entry.status.replaceAll('_', ' ')}</span>
+                    </span>
+                    <ChevronRight size={16} className="text-[hsl(var(--muted-foreground))]" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="p-10 text-center">
+                <CheckCircle2 className="mx-auto text-[hsl(var(--secondary))]" size={28} />
+                <p className="mt-3 font-semibold">The queue is clear</p>
+                <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">New visitor registrations will appear here instantly.</p>
+              </div>
+            )}
+          </Card>
+
+          <div className="space-y-6">
+            {dashboard.data?.nowMeeting && (
+              <Card className="overflow-hidden border-0 bg-[hsl(var(--secondary))] text-white paper-shadow">
+                <div className="border-b border-white/10 px-5 py-4"><p className="mono-label text-[9px] text-white/60 font-bold uppercase">In the room now</p></div>
+                <div className="p-5">
+                  <p className="font-serif text-2xl font-bold" data-testid="text-now-meeting">{dashboard.data.nowMeeting.fullName}</p>
+                  <p className="mt-2 text-xs text-white/80">{dashboard.data.nowMeeting.purpose} ({dashboard.data.nowMeeting.department})</p>
+                  <div className="mt-5 flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-white/70"><MapPin size={13} /> {dashboard.data.nowMeeting.location || 'Location not recorded'}</span>
+                    <span className="font-mono text-xs font-bold bg-white/15 px-2.5 py-1 rounded">{dashboard.data.nowMeeting.token}</span>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            <Card className="border-0 paper-shadow">
+              <div className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="mono-label text-[10px] text-[hsl(var(--secondary))] font-bold">Up next</p>
+                    <h2 className="mt-1 font-serif text-lg font-bold">Prep next visitors</h2>
+                  </div>
+                  <Bell size={18} className="text-[hsl(var(--primary))]" />
+                </div>
+                <div className="mt-5 space-y-3">
+                  {(dashboard.data?.nextVisitors ?? []).slice(0, 3).map((visitor, i) => (
+                    <div className="flex items-center gap-3" key={visitor.id} data-testid={`card-next-visitor-${visitor.id}`}>
+                      <span className="font-mono text-xs font-bold text-[hsl(var(--primary))]">{String(i + 1).padStart(2, '0')}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{visitor.fullName}</p>
+                        <p className="truncate text-[11px] text-[hsl(var(--muted-foreground))]">{visitor.purpose} · <span className="font-semibold">{visitor.token}</span></p>
+                      </div>
+                      <span className="text-xs font-bold font-mono text-[hsl(var(--primary))]">{visitor.waitingMinutes}m</span>
+                    </div>
+                  ))}
+                  {!dashboard.data?.nextVisitors?.length && <p className="text-xs text-[hsl(var(--muted-foreground))]">No waiting list entries queued.</p>}
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {selectedId !== null && (
+          <Card className="border-0 bg-[hsl(var(--card))] paper-shadow animate-rise">
+            <div className="flex items-center justify-between border-b border-[hsl(var(--border))] p-5">
+              <div>
+                <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Visitor briefing file</p>
+                <h2 className="mt-1 font-serif text-xl font-bold">{selected.isLoading ? 'Loading briefing...' : selected.data?.fullName ?? 'Visitor brief'}</h2>
+              </div>
+              <button className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" onClick={() => setSelectedId(null)} data-testid="button-close-visitor-briefing"><X size={18} /></button>
+            </div>
+
+            {selected.isLoading ? (
+              <div className="p-5"><LoadingBlock lines={4} /></div>
+            ) : selected.data && (
+              <div className="grid gap-6 p-5 lg:grid-cols-[1.1fr_.9fr]">
+                <div>
+                  <div className="bg-[hsl(var(--muted))]/50 rounded-2xl p-4 border border-[hsl(var(--border))]">
+                    <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] uppercase">Grievance / Issue details</p>
+                    <p className="mt-2 text-sm leading-6 font-medium text-[hsl(var(--foreground))] bg-white border border-[hsl(var(--border))] p-3 rounded-lg italic">"{selected.data.description}"</p>
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-2 gap-4 text-xs">
+                    <div><p className="text-xs text-[hsl(var(--muted-foreground))] font-bold">TOKEN</p><p className="mt-1 font-mono font-bold text-sm" data-testid="text-briefing-token">{selected.data.token}</p></div>
+                    <div><p className="text-xs text-[hsl(var(--muted-foreground))] font-bold">MOBILE</p><p className="mt-1 font-mono font-bold text-sm" data-testid="text-briefing-mobile">{selected.data.mobile}</p></div>
+                    <div><p className="text-xs text-[hsl(var(--muted-foreground))] font-bold">TALUKA / VILLAGE</p><p className="mt-1 font-bold">{selected.data.taluka} · {selected.data.location}</p></div>
+                    <div><p className="text-xs text-[hsl(var(--muted-foreground))] font-bold">REPEAT VISITS</p><p className="mt-1 font-bold text-sm text-[hsl(var(--primary))]">{selected.data.previousVisits ?? 0} previous meetings</p></div>
+                    <div><p className="text-xs text-[hsl(var(--muted-foreground))] font-bold">PURPOSE CATEGORY</p><p className="mt-1 font-semibold">{selected.data.category}</p></div>
+                    {selected.data.organisation && <div><p className="text-xs text-[hsl(var(--muted-foreground))] font-bold">ORGANISATION</p><p className="mt-1 font-semibold">{selected.data.organisation}</p></div>}
+                  </div>
+
+                  {selected.data.previouslyApproached && (
+                    <div className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1">
+                      <p className="text-[10px] font-bold text-amber-700 uppercase">Previous Department Interaction</p>
+                      <p className="text-xs font-medium">Officer: <span className="font-bold">{selected.data.previousDepartment}</span></p>
+                      <p className="text-xs font-medium">Interaction Date: <span className="font-bold">{dateLabel(selected.data.previousDate)}</span></p>
+                      {selected.data.previousReference && <p className="text-xs font-mono text-[10px]">Reference ID: {selected.data.previousReference}</p>}
+                    </div>
+                  )}
+
+                  <div className="mt-6 flex flex-wrap gap-2 pt-5 border-t border-[hsl(var(--border))]">
+                    <Button variant={selected.data.status === 'called' ? 'outline' : 'default'} size="sm" onClick={() => act(selected.data!.id, 'call')} disabled={queueAction.isPending} data-testid="button-queue-action-call">Call Room</Button>
+                    <Button variant="outline" size="sm" onClick={() => act(selected.data!.id, 'hold')} disabled={queueAction.isPending} data-testid="button-queue-action-hold">Place Hold</Button>
+                    <Button variant="outline" size="sm" onClick={() => act(selected.data!.id, 'check_in')} disabled={queueAction.isPending} data-testid="button-queue-action-check-in">Re-queue (Waiting)</Button>
+                    <Button variant="outline" size="sm" onClick={() => act(selected.data!.id, 'no_show')} disabled={queueAction.isPending} className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-600" data-testid="button-queue-action-no-show">Mark No-Show</Button>
+                  </div>
+                </div>
+
+                <form className="rounded-xl bg-[hsl(var(--muted))]/60 p-5 border border-[hsl(var(--border))]" onSubmit={save} data-testid="form-visit-outcome">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-[hsl(var(--secondary))]">Record Meeting Decision</h3>
+                  <p className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">Post meeting disposition updates token status and alerts departments.</p>
+
+                  <div className="mt-4 space-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="outcome" className="text-xs font-bold uppercase">Decision Status</Label>
+                      <select id="outcome" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={outcome} onChange={(e) => setOutcome(e.target.value)} data-testid="select-outcome">
+                        <option value="resolved">Resolved (Close Case)</option>
+                        <option value="referred">Referred to Department</option>
+                        <option value="action_required">Action Required</option>
+                        <option value="information_provided">Information Provided</option>
+                        <option value="rescheduled">Rescheduled</option>
+                        <option value="rejected">Rejected / Not Applicable</option>
+                        <option value="follow_up">Follow-up Required</option>
+                      </select>
+                    </div>
+
+                    {outcome === 'referred' && (
+                      <div className="space-y-1.5 animate-rise">
+                        <Label htmlFor="referred-dept" className="text-xs font-bold uppercase">Target Department</Label>
+                        <select id="referred-dept" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={referredTo} onChange={(e) => setReferredTo(e.target.value)} data-testid="select-referred-dept">
+                          <option>General Administration</option>
+                          <option>Rural Development</option>
+                          <option>Revenue</option>
+                          <option>Education</option>
+                          <option>Health</option>
+                          <option>Water & Sanitation</option>
+                          <option>Women & Child Development</option>
+                          <option>Agriculture</option>
+                          <option>Finance</option>
+                          <option>Works (Roads & Infra)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="outcome-notes" className="text-xs font-bold uppercase">Official Notes / Instructions</Label>
+                      <Textarea id="outcome-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Enter formal instructions for reference or action..." required data-testid="textarea-outcome-notes" />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="follow-up-date" className="text-xs font-bold uppercase">Follow-up Date (optional)</Label>
+                      <Input id="follow-up-date" type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} data-testid="input-follow-up-date" />
+                    </div>
+
+                    <Button type="submit" className="w-full bg-[hsl(var(--secondary))] text-white shadow" disabled={saveOutcome.isPending} data-testid="button-save-outcome">
+                      {saveOutcome.isPending ? 'Saving outcome…' : 'Record and complete visit'} <Check size={15} />
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
+    </OfficeShell>
+  );
 }
 
 function Analytics() {
   const analytics = useGetOfficeAnalytics({ query: { queryKey: getGetOfficeAnalyticsQueryKey(), refetchInterval: 30000 } });
   const data = analytics.data;
-  return <OfficeShell title="The desk, in perspective" eyebrow="Operational insights"><div className="space-y-6">{analytics.isLoading ? <Card className="border-0 p-6"><LoadingBlock lines={8} /></Card> : analytics.isError ? <QueryError retry={() => analytics.refetch()} /> : data && <><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[{label: 'Today', value: data.today}, {label: 'This week', value: data.weekly}, {label: 'This month', value: data.monthly}, {label: 'No-show rate', value: `${data.noShowRate}%`}].map((item, i) => <Card className="border-0 p-5 paper-shadow" key={item.label} data-testid={`card-analytics-${i}`}><p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))]">{item.label}</p><p className="mt-4 font-serif text-3xl font-bold" data-testid={`text-analytics-${i}`}>{item.value}</p></Card>)}</div><div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr]"><Card className="border-0 paper-shadow p-5 sm:p-6"><div className="flex items-start justify-between"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Who comes to the desk</p><h2 className="mt-1 font-serif text-xl font-bold">Visitor mix</h2></div><UsersRound size={19} className="text-[hsl(var(--secondary))]" /></div><div className="mt-7 grid grid-cols-2 gap-4"><div className="rounded-xl bg-[hsl(var(--secondary))] p-4 text-white"><p className="text-xs text-white/60">Unique visitors</p><p className="mt-3 font-serif text-3xl font-bold" data-testid="text-unique-visitors">{data.unique}</p></div><div className="rounded-xl bg-[hsl(var(--primary))]/12 p-4"><p className="text-xs text-[hsl(var(--muted-foreground))]">Repeat visitors</p><p className="mt-3 font-serif text-3xl font-bold">{data.repeat}</p></div></div><div className="mt-5 space-y-3">{[{label: 'Walk-ins', value: data.walkIns, total: data.walkIns + data.appointments, color: 'bg-[hsl(var(--primary))]'},{label: 'Appointments', value: data.appointments, total: data.walkIns + data.appointments, color: 'bg-[hsl(var(--secondary))]'}].map((item) => <div key={item.label} data-testid={`metric-visitor-type-${item.label.toLowerCase()}`}><div className="flex justify-between text-sm"><span>{item.label}</span><span className="font-mono text-xs">{item.value}</span></div><div className="mt-2 h-2 rounded-full bg-[hsl(var(--muted))]"><div className={`h-2 rounded-full ${item.color}`} style={{ width: `${item.total ? Math.max(8, item.value / item.total * 100) : 0}%` }} /></div></div>)}</div></Card><BreakdownCard title="Matters by department" eyebrow="Departments" items={data.departments} icon={<Landmark size={19} />} /></div><div className="grid gap-6 lg:grid-cols-2"><BreakdownCard title="What citizens bring" eyebrow="Categories" items={data.categories} icon={<SlidersHorizontal size={19} />} /><BreakdownCard title="How matters close" eyebrow="Outcomes" items={data.outcomes} icon={<CheckCircle2 size={19} />} /></div></>}</div></OfficeShell>;
+
+  return (
+    <OfficeShell title="Desk analytics & Intelligence" eyebrow="Operational insights">
+      <div className="space-y-6">
+        {analytics.isLoading ? (
+          <Card className="border-0 p-6"><LoadingBlock lines={8} /></Card>
+        ) : analytics.isError ? (
+          <QueryError retry={() => analytics.refetch()} />
+        ) : (
+          data && (
+            <>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {[{ label: 'Today\'s Visits', value: data.today },
+                  { label: 'Weekly load', value: data.weekly },
+                  { label: 'Monthly load', value: data.monthly },
+                  { label: 'No-show rate', value: `${data.noShowRate}%` }].map((item, i) => (
+                  <Card className="border-0 p-5 paper-shadow" key={item.label} data-testid={`card-analytics-${i}`}>
+                    <p className="mono-label text-[9px] text-[hsl(var(--muted-foreground))] font-bold">{item.label}</p>
+                    <p className="mt-4 font-serif text-3xl font-bold" data-testid={`text-analytics-${i}`}>{item.value}</p>
+                  </Card>
+                ))}
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
+                <Card className="border-0 paper-shadow p-5 sm:p-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Visitor profile mix</p>
+                      <h2 className="mt-1 font-serif text-xl font-bold">Citizen metrics</h2>
+                    </div>
+                    <UsersRound size={19} className="text-[hsl(var(--secondary))]" />
+                  </div>
+                  <div className="mt-7 grid grid-cols-2 gap-4">
+                    <div className="rounded-xl bg-[hsl(var(--secondary))] p-4 text-white">
+                      <p className="text-xs text-white/70 font-semibold">Unique citizens</p>
+                      <p className="mt-3 font-serif text-3xl font-bold" data-testid="text-unique-visitors">{data.unique}</p>
+                    </div>
+                    <div className="rounded-xl bg-[hsl(var(--primary))]/12 p-4">
+                      <p className="text-xs text-[hsl(var(--muted-foreground))] font-semibold">Repeat Grievances</p>
+                      <p className="mt-3 font-serif text-3xl font-bold text-[hsl(var(--secondary))]">{data.repeat}</p>
+                    </div>
+                  </div>
+                  <div className="mt-5 space-y-4 pt-4 border-t border-[hsl(var(--border))]">
+                    {[{ label: 'Walk-ins', value: data.walkIns, total: data.walkIns + data.appointments, color: 'bg-[hsl(var(--primary))]' },
+                      { label: 'Appointments', value: data.appointments, total: data.walkIns + data.appointments, color: 'bg-[hsl(var(--secondary))]' }].map((item) => (
+                      <div key={item.label} data-testid={`metric-visitor-type-${item.label.toLowerCase()}`}>
+                        <div className="flex justify-between text-xs font-semibold">
+                          <span>{item.label}</span>
+                          <span className="font-mono text-xs">{item.value} ({item.total ? Math.round((item.value / item.total) * 100) : 0}%)</span>
+                        </div>
+                        <div className="mt-2 h-2 rounded-full bg-[hsl(var(--muted))]">
+                          <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${item.total ? Math.max(8, (item.value / item.total) * 100) : 0}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                <BreakdownCard title="Cases by department" eyebrow="Departments" items={data.departments} icon={<Landmark size={19} />} />
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <BreakdownCard title="Citizens' concerns" eyebrow="Categories" items={data.categories} icon={<SlidersHorizontal size={19} />} />
+                <BreakdownCard title="Recorded Outcomes" eyebrow="Outcomes" items={data.outcomes} icon={<CheckCircle2 size={19} />} />
+              </div>
+            </>
+          )
+        )}
+      </div>
+    </OfficeShell>
+  );
 }
 
 function BreakdownCard({ title, eyebrow, items, icon }: { title: string; eyebrow: string; items: { label: string; value: number; share: number }[]; icon: React.ReactNode }) {
-  return <Card className="border-0 paper-shadow p-5 sm:p-6"><div className="flex items-start justify-between"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">{eyebrow}</p><h2 className="mt-1 font-serif text-xl font-bold">{title}</h2></div><span className="text-[hsl(var(--secondary))]">{icon}</span></div>{items.length ? <div className="mt-6 space-y-4">{items.map((item, i) => <div key={item.label} data-testid={`row-breakdown-${eyebrow.toLowerCase()}-${i}`}><div className="flex items-center justify-between gap-4 text-sm"><span className="truncate font-medium">{item.label}</span><span className="shrink-0 font-mono text-xs text-[hsl(var(--muted-foreground))]">{item.value} · {Math.round(item.share)}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[hsl(var(--muted))]"><div className={`h-full rounded-full ${i % 2 ? 'bg-[hsl(var(--secondary))]' : 'bg-[hsl(var(--primary))]'}`} style={{ width: `${Math.min(100, item.share)}%` }} /></div></div>)}</div> : <p className="mt-6 text-sm text-[hsl(var(--muted-foreground))]">No recorded data yet.</p>}</Card>;
+  return (
+    <Card className="border-0 paper-shadow p-5 sm:p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">{eyebrow}</p>
+          <h2 className="mt-1 font-serif text-xl font-bold">{title}</h2>
+        </div>
+        <span className="text-[hsl(var(--secondary))]">{icon}</span>
+      </div>
+      {items.length ? (
+        <div className="mt-6 space-y-4 max-h-[300px] overflow-y-auto pr-1">
+          {items.map((item, i) => (
+            <div key={item.label} data-testid={`row-breakdown-${eyebrow.toLowerCase()}-${i}`}>
+              <div className="flex items-center justify-between gap-4 text-xs font-semibold">
+                <span className="truncate">{item.label}</span>
+                <span className="shrink-0 font-mono text-xs text-[hsl(var(--muted-foreground))]">{item.value} · {Math.round(item.share)}%</span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[hsl(var(--muted))]">
+                <div className={`h-full rounded-full ${i % 2 ? 'bg-[hsl(var(--secondary))]' : 'bg-[hsl(var(--primary))]'}`} style={{ width: `${Math.min(100, item.share)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-6 text-xs text-[hsl(var(--muted-foreground))]">No statistics recorded yet.</p>
+      )}
+    </Card>
+  );
 }
 
 function SearchPage() {
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
   const results = useSearchOfficeVisits({ query: submitted }, { query: { enabled: submitted.length > 1, queryKey: getSearchOfficeVisitsQueryKey({ query: submitted }) } });
-  return <OfficeShell title="Find a visitor record" eyebrow="Records search"><div className="space-y-6"><Card className="border-0 paper-shadow p-5 sm:p-6"><div className="max-w-2xl"><p className="text-sm leading-6 text-[hsl(var(--muted-foreground))]">Search by token, name, mobile, reference number, or purpose. Search results remain within the office desk.</p><form className="mt-5 flex gap-2" onSubmit={(e) => { e.preventDefault(); setSubmitted(query.trim()); }}><div className="relative flex-1"><Search className="absolute left-3 top-3 text-[hsl(var(--muted-foreground))]" size={17} /><Input value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" placeholder="Search visitor records" data-testid="input-office-search" /></div><Button type="submit" disabled={query.trim().length < 2} data-testid="button-submit-office-search">Search</Button></form></div></Card>{submitted && <Card className="border-0 paper-shadow"><div className="border-b border-[hsl(var(--border))] p-5"><div className="flex items-center justify-between"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Search results</p><h2 className="mt-1 font-serif text-xl font-bold">Matches for “{submitted}”</h2></div><Badge variant="outline" data-testid="status-search-count">{results.data?.length ?? 0} records</Badge></div></div>{results.isLoading ? <div className="p-5"><LoadingBlock lines={5} /></div> : results.isError ? <div className="p-5"><QueryError retry={() => results.refetch()} /></div> : results.data?.length ? <div className="divide-y divide-[hsl(var(--border))]">{results.data.map((visit) => <Link href={`/status/${visit.token}`} key={visit.id} className="flex flex-col gap-3 p-5 transition hover:bg-[hsl(var(--muted))]/55 sm:flex-row sm:items-center" data-testid={`row-search-result-${visit.id}`}><span className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--secondary))] font-mono text-xs font-bold text-white">{visit.token.replace('ZP-', '')}</span><span className="min-w-0 flex-1"><span className="block text-sm font-bold">{visit.fullName}</span><span className="mt-1 block truncate text-xs text-[hsl(var(--muted-foreground))]">{visit.purpose} · {visit.department}</span></span><span className="text-xs text-[hsl(var(--muted-foreground))]">{dateLabel(visit.appointmentDate || visit.registeredAt)}</span><Badge variant="outline" className="w-fit capitalize">{visit.status.replaceAll('_', ' ')}</Badge><ChevronRight size={16} className="text-[hsl(var(--muted-foreground))]" /></Link>)}</div> : <div className="p-10 text-center"><FileSearch className="mx-auto text-[hsl(var(--muted-foreground))]" size={28} /><p className="mt-3 font-semibold">No records found</p><p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Try a token, visitor name, or a shorter phrase.</p></div>}</Card>}</div></OfficeShell>;
+
+  return (
+    <OfficeShell title="Visitor Records Registry" eyebrow="Records lookup">
+      <div className="space-y-6">
+        <Card className="border-0 paper-shadow p-5 sm:p-6">
+          <div className="max-w-2xl">
+            <p className="text-sm leading-6 text-[hsl(var(--muted-foreground))] font-semibold">Search the entire citizen registration database by name, mobile, token number, village/taluka, concerned department, or reference ID.</p>
+            <form className="mt-5 flex gap-2" onSubmit={(e) => { e.preventDefault(); setSubmitted(query.trim()); }}>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 text-[hsl(var(--muted-foreground))]" size={17} />
+                <Input value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" placeholder="Enter keywords e.g. Rajesh or Water or CEO-001" data-testid="input-office-search" />
+              </div>
+              <Button type="submit" disabled={query.trim().length < 2} data-testid="button-submit-office-search">Search Registry</Button>
+            </form>
+          </div>
+        </Card>
+
+        {submitted && (
+          <Card className="border-0 paper-shadow animate-rise">
+            <div className="border-b border-[hsl(var(--border))] p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Query results</p>
+                  <h2 className="mt-1 font-serif text-xl font-bold">Matches for “{submitted}”</h2>
+                </div>
+                <Badge variant="outline" data-testid="status-search-count" className="font-bold">{results.data?.length ?? 0} matches</Badge>
+              </div>
+            </div>
+
+            {results.isLoading ? (
+              <div className="p-5"><LoadingBlock lines={5} /></div>
+            ) : results.isError ? (
+              <div className="p-5"><QueryError retry={() => results.refetch()} /></div>
+            ) : results.data?.length ? (
+              <div className="divide-y divide-[hsl(var(--border))]">
+                {results.data.map((visit) => (
+                  <Link href={`/status/${visit.token}`} key={visit.id} className="flex flex-col gap-3 p-5 transition hover:bg-[hsl(var(--muted))]/55 sm:flex-row sm:items-center" data-testid={`row-search-result-${visit.id}`}>
+                    <span className={`grid h-10 w-16 place-items-center rounded-lg font-mono text-xs font-bold text-white uppercase shrink-0 ${visit.token.startsWith('VVIP-') ? 'bg-amber-600' : 'bg-[hsl(var(--secondary))]'}`}>
+                      {visit.token}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold">{visit.fullName}</span>
+                      <span className="mt-1 block truncate text-xs text-[hsl(var(--muted-foreground))]">{visit.purpose} · <span className="font-semibold">{visit.department}</span></span>
+                    </span>
+                    <span className="text-xs text-[hsl(var(--muted-foreground))] shrink-0 font-medium">{dateLabel(visit.appointmentDate || visit.registeredAt)}</span>
+                    <Badge variant="outline" className="w-fit capitalize text-xs">{visit.status.replaceAll('_', ' ')}</Badge>
+                    <ChevronRight size={16} className="text-[hsl(var(--muted-foreground))]" />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="p-10 text-center">
+                <FileSearch className="mx-auto text-[hsl(var(--muted-foreground))]" size={28} />
+                <p className="mt-3 font-semibold">No records found</p>
+                <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Verify spelling, or try entering a shorter token number or mobile number.</p>
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
+    </OfficeShell>
+  );
 }
 
 function Appointments() {
   const date = today();
   const appointments = useGetOfficeAppointments({ date }, { query: { queryKey: getGetOfficeAppointmentsQueryKey({ date }), refetchInterval: 10000 } });
-  return <OfficeShell title="Appointment manager" eyebrow="Scheduled visits"><div className="space-y-6"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Selected date</p><h2 className="mt-1 font-serif text-2xl font-bold">{dateLabel(date)}</h2><p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Only appointments stored for this date are shown. Future dates can be added when date filtering is enabled.</p></div><Button variant="outline" onClick={() => appointments.refetch()} data-testid="button-refresh-appointments"><RefreshCcw size={15} /> Refresh</Button></div>{appointments.isLoading ? <Card className="border-0 p-6"><LoadingBlock lines={7} /></Card> : appointments.isError ? <QueryError retry={() => appointments.refetch()} /> : appointments.data?.length ? <Card className="border-0 paper-shadow"><div className="divide-y divide-[hsl(var(--border))]">{appointments.data.map((visit) => <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center" key={visit.id} data-testid={`row-appointment-${visit.id}`}><div className="grid h-11 w-16 shrink-0 place-items-center rounded-xl bg-[hsl(var(--secondary))] font-mono text-[10px] font-bold text-white">{visit.appointmentSlot || '—'}</div><div className="min-w-0 flex-1"><p className="font-semibold">{visit.fullName}</p><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{visit.purpose} · {visit.department}</p></div><Badge variant="outline" className="w-fit capitalize">{visit.status.replaceAll('_', ' ')}</Badge><span className="text-xs text-[hsl(var(--muted-foreground))]">{visit.mobile}</span></div>)}</div></Card> : <Card className="border-0 p-10 text-center"><CalendarDays className="mx-auto text-[hsl(var(--secondary))]" size={30} /><p className="mt-3 font-semibold">No appointments recorded for today</p><p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Appointments will appear here after a citizen completes registration.</p></Card>}</div></OfficeShell>;
+
+  return (
+    <OfficeShell title="Appointment Schedule Manager" eyebrow="Scheduled visits">
+      <div className="space-y-6">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Selected date</p>
+            <h2 className="mt-1 font-serif text-2xl font-bold">{dateLabel(date)}</h2>
+            <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))] font-semibold">Scheduled time-slots booked by citizens for today.</p>
+          </div>
+          <Button variant="outline" onClick={() => appointments.refetch()} data-testid="button-refresh-appointments" className="shadow-sm"><RefreshCcw size={15} /> Refresh</Button>
+        </div>
+
+        {appointments.isLoading ? (
+          <Card className="border-0 p-6"><LoadingBlock lines={7} /></Card>
+        ) : appointments.isError ? (
+          <QueryError retry={() => appointments.refetch()} />
+        ) : appointments.data?.length ? (
+          <Card className="border-0 paper-shadow">
+            <div className="divide-y divide-[hsl(var(--border))]">
+              {appointments.data.map((visit) => (
+                <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center justify-between" key={visit.id} data-testid={`row-appointment-${visit.id}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-11 w-20 shrink-0 place-items-center rounded-xl bg-[hsl(var(--secondary))]/10 font-mono text-xs font-bold text-[hsl(var(--secondary))] border border-[hsl(var(--secondary))]/20">
+                      {visit.appointmentSlot ? `ID ${visit.appointmentSlot}` : 'Slot'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm">{visit.fullName} <span className="font-mono text-xs text-[hsl(var(--primary))] ml-2">({visit.token})</span></p>
+                      <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{visit.purpose} · <span className="font-semibold">{visit.department}</span></p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <Badge className="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5">{visit.appointmentDuration} Mins</Badge>
+                    <Badge variant="outline" className="capitalize">{visit.status.replaceAll('_', ' ')}</Badge>
+                    <span className="text-xs font-mono font-bold text-[hsl(var(--muted-foreground))]">{visit.mobile}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : (
+          <Card className="border-0 p-10 text-center paper-shadow">
+            <CalendarDays className="mx-auto text-[hsl(var(--secondary))]" size={30} />
+            <p className="mt-3 font-semibold">No appointments scheduled for today</p>
+            <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Scheduled slots will display here as citizens complete bookings.</p>
+          </Card>
+        )}
+      </div>
+    </OfficeShell>
+  );
 }
 
 function AdminPage() {
   const slots = useGetOfficeSlots({ query: { queryKey: getGetOfficeSlotsQueryKey() } });
   const createSlot = useCreateOfficeSlot();
   const deleteSlot = useDeleteOfficeSlot();
+
+  const users = useGetOfficeUsers({ query: { queryKey: getGetOfficeUsersQueryKey() } });
+  const createUser = useCreateOfficeUser();
+  const deleteUser = useDeleteOfficeUser();
+
   const client = useQueryClient();
-  const [label, setLabel] = useState('');
-  const [capacity, setCapacity] = useState('');
-  const [sortOrder, setSortOrder] = useState('');
-  const submit = (event: React.FormEvent) => {
+
+  // Slot states
+  const [slotLabel, setSlotLabel] = useState('');
+  const [slotCapacity, setSlotCapacity] = useState('');
+  const [slotSortOrder, setSlotSortOrder] = useState('');
+
+  // User states
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [userFullName, setUserFullName] = useState('');
+  const [userRole, setUserRole] = useState('reception');
+  const [userDept, setUserDept] = useState('');
+  const [userError, setUserError] = useState('');
+
+  const submitSlot = (event: React.FormEvent) => {
     event.preventDefault();
-    createSlot.mutate({ data: { label, capacity: Number(capacity), active: true, sortOrder: Number(sortOrder) } }, { onSuccess: () => { setLabel(''); setCapacity(''); setSortOrder(''); client.invalidateQueries({ queryKey: getGetOfficeSlotsQueryKey() }); } });
+    createSlot.mutate({
+      data: {
+        label: slotLabel,
+        capacity: Number(slotCapacity),
+        active: true,
+        sortOrder: Number(slotSortOrder)
+      }
+    }, {
+      onSuccess: () => {
+        setSlotLabel('');
+        setSlotCapacity('');
+        setSlotSortOrder('');
+        client.invalidateQueries({ queryKey: getGetOfficeSlotsQueryKey() });
+        client.invalidateQueries({ queryKey: getGetAvailabilityQueryKey({ date: today() }) });
+      }
+    });
   };
-  return <OfficeShell title="Admin settings" eyebrow="Configuration"><div className="space-y-6"><Card className="border-0 paper-shadow p-5 sm:p-6"><div className="flex items-start gap-3"><Settings2 className="mt-1 text-[hsl(var(--primary))]" size={20} /><div><p className="mono-label text-[10px] text-[hsl(var(--primary))]">Appointment availability</p><h2 className="mt-1 font-serif text-xl font-bold">Configure real slots</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">These slots are stored in the database and are the only slots citizens can book. Nothing is pre-filled.</p></div></div><form onSubmit={submit} className="mt-6 grid gap-4 sm:grid-cols-[1.4fr_.7fr_.7fr_auto] sm:items-end" data-testid="form-create-slot"><Field label="Slot label" name="slot-label" value={label} onChange={(_, value) => setLabel(value)} placeholder="e.g. 12:00 PM" required /><Field label="Capacity" name="slot-capacity" value={capacity} onChange={(_, value) => setCapacity(value)} placeholder="Seats" type="number" required /><Field label="Order" name="slot-order" value={sortOrder} onChange={(_, value) => setSortOrder(value)} placeholder="1" type="number" required /><Button type="submit" disabled={createSlot.isPending || !label || !capacity || !sortOrder} data-testid="button-create-slot"><Plus size={16} /> Add slot</Button></form></Card><Card className="border-0 paper-shadow"><div className="border-b border-[hsl(var(--border))] p-5"><p className="mono-label text-[10px] text-[hsl(var(--secondary))]">Stored configuration</p><h2 className="mt-1 font-serif text-xl font-bold">Appointment slots</h2></div>{slots.isLoading ? <div className="p-5"><LoadingBlock lines={4} /></div> : slots.data?.length ? <div className="divide-y divide-[hsl(var(--border))]">{slots.data.map((slot: AppointmentSlotAdmin) => <div className="flex items-center gap-4 p-5" key={slot.id} data-testid={`row-slot-${slot.id}`}><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--secondary))]/10 text-[hsl(var(--secondary))]"><CalendarDays size={18} /></div><div className="min-w-0 flex-1"><p className="font-semibold">{slot.label}</p><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Capacity {slot.capacity} · order {slot.sortOrder} · {slot.active ? 'active' : 'inactive'}</p></div><Button variant="ghost" size="sm" onClick={() => deleteSlot.mutate({ id: slot.id }, { onSuccess: () => client.invalidateQueries({ queryKey: getGetOfficeSlotsQueryKey() }) })} disabled={deleteSlot.isPending} data-testid={`button-delete-slot-${slot.id}`}><Trash2 size={16} /></Button></div>)}</div> : <div className="p-10 text-center"><CalendarDays className="mx-auto text-[hsl(var(--muted-foreground))]" size={30} /><p className="mt-3 font-semibold">No appointment slots configured</p><p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Add the office’s approved slots above before accepting appointments.</p></div>}</Card></div></OfficeShell>;
+
+  const submitUser = (event: React.FormEvent) => {
+    event.preventDefault();
+    setUserError('');
+
+    createUser.mutate({
+      data: {
+        username,
+        password,
+        fullName: userFullName,
+        role: userRole,
+        department: userRole === 'officer' ? userDept : null,
+      }
+    }, {
+      onSuccess: () => {
+        setUsername('');
+        setPassword('');
+        setUserFullName('');
+        setUserDept('');
+        client.invalidateQueries({ queryKey: getGetOfficeUsersQueryKey() });
+      },
+      onError: (err: any) => {
+        setUserError(err?.message || 'Failed to create user account. Username may be taken.');
+      }
+    });
+  };
+
+  const handleDeleteSlot = (id: number) => {
+    deleteSlot.mutate({ id }, {
+      onSuccess: () => {
+        client.invalidateQueries({ queryKey: getGetOfficeSlotsQueryKey() });
+        client.invalidateQueries({ queryKey: getGetAvailabilityQueryKey({ date: today() }) });
+      }
+    });
+  };
+
+  const handleDeleteUser = (id: number) => {
+    deleteUser.mutate({ id }, {
+      onSuccess: () => {
+        client.invalidateQueries({ queryKey: getGetOfficeUsersQueryKey() });
+      }
+    });
+  };
+
+  return (
+    <OfficeShell title="Admin configuration panel" eyebrow="System Settings">
+      <div className="space-y-10">
+        {/* User Account Configuration */}
+        <div className="space-y-6">
+          <Card className="border-0 paper-shadow p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <UsersRound className="mt-1 text-[hsl(var(--primary))]" size={20} />
+              <div>
+                <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Staff Directory & RBAC</p>
+                <h2 className="mt-1 font-serif text-xl font-bold">Manage portal user accounts</h2>
+                <p className="mt-2 max-w-2xl text-xs leading-5 text-[hsl(var(--muted-foreground))]">Create and remove system operator credentials. Roles regulate access to Live Desk, Analytics, and Settings panels.</p>
+              </div>
+            </div>
+
+            {userError && <p className="mt-4 rounded-lg bg-[hsl(var(--destructive))]/8 p-3 text-xs text-[hsl(var(--destructive))] font-semibold">{userError}</p>}
+
+            <form onSubmit={submitUser} className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-6 items-end" data-testid="form-create-user">
+              <div className="lg:col-span-1">
+                <Field label="Username" name="user-username" value={username} onChange={(_, v) => setUsername(v)} placeholder="e.g. patil_pa" required />
+              </div>
+              <div className="lg:col-span-1">
+                <Field label="Password" name="user-password" value={password} onChange={(_, v) => setPassword(v)} placeholder="Min 6 chars" type="password" required />
+              </div>
+              <div className="lg:col-span-1.5">
+                <Field label="Full Name" name="user-fullname" value={userFullName} onChange={(_, v) => setUserFullName(v)} placeholder="e.g. Rajesh Patil" required />
+              </div>
+              <div className="space-y-2 lg:col-span-1">
+                <Label htmlFor="user-role" className="text-xs font-semibold">User Role</Label>
+                <select id="user-role" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={userRole} onChange={(e) => setUserRole(e.target.value)}>
+                  <option value="reception">Reception / PA</option>
+                  <option value="ceo">CEO / Officer</option>
+                  <option value="admin">System Admin</option>
+                </select>
+              </div>
+              <div className="lg:col-span-1">
+                <Field label="Dept (for Officers)" name="user-dept" value={userDept} onChange={(_, v) => setUserDept(v)} placeholder="e.g. Revenue" />
+              </div>
+              <div className="lg:col-span-0.5">
+                <Button type="submit" disabled={createUser.isPending || !username || !password || !userFullName} className="w-full"><Plus size={16} /> Add user</Button>
+              </div>
+            </form>
+          </Card>
+
+          <Card className="border-0 paper-shadow">
+            <div className="border-b border-[hsl(var(--border))] p-5">
+              <h3 className="font-serif text-lg font-bold">Registered Users</h3>
+            </div>
+            {users.isLoading ? (
+              <div className="p-5"><LoadingBlock lines={4} /></div>
+            ) : users.data?.length ? (
+              <div className="divide-y divide-[hsl(var(--border))]">
+                {users.data.map((user: UserResponse) => (
+                  <div className="flex items-center justify-between p-5" key={user.id} data-testid={`row-user-${user.id}`}>
+                    <div className="flex items-center gap-4">
+                      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
+                        <UsersRound size={18} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">{user.fullName} <span className="font-mono text-xs text-[hsl(var(--muted-foreground))] ml-2">(@{user.username})</span></p>
+                        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Role: <span className="font-semibold capitalize text-[hsl(var(--secondary))]">{user.role}</span> {user.department ? `· Dept: ${user.department}` : ''}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => handleDeleteUser(user.id)} disabled={deleteUser.isPending} data-testid={`button-delete-user-${user.id}`}><Trash2 size={16} /></Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-10 text-center"><p className="text-xs text-[hsl(var(--muted-foreground))]">No users registered.</p></div>
+            )}
+          </Card>
+        </div>
+
+        {/* Slot Configuration */}
+        <div className="space-y-6">
+          <Card className="border-0 paper-shadow p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <Settings2 className="mt-1 text-[hsl(var(--primary))]" size={20} />
+              <div>
+                <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Appointment Slots availability</p>
+                <h2 className="mt-1 font-serif text-xl font-bold">Configure active time slots</h2>
+                <p className="mt-2 max-w-2xl text-xs leading-5 text-[hsl(var(--muted-foreground))]">Define 5-minute increment slots that citizens can select. Capacity limits regulate concurrent bookings.</p>
+              </div>
+            </div>
+            <form onSubmit={submitSlot} className="mt-6 grid gap-4 sm:grid-cols-[1.4fr_.7fr_.7fr_auto] sm:items-end" data-testid="form-create-slot">
+              <Field label="Slot label" name="slot-label" value={slotLabel} onChange={(_, value) => setSlotLabel(value)} placeholder="e.g. 10:45 AM" required />
+              <Field label="Capacity" name="slot-capacity" value={slotCapacity} onChange={(_, value) => setSlotCapacity(value)} placeholder="Max bookings" type="number" required />
+              <Field label="Sort Order" name="slot-order" value={slotSortOrder} onChange={(_, value) => setSlotSortOrder(value)} placeholder="e.g. 10" type="number" required />
+              <Button type="submit" disabled={createSlot.isPending || !slotLabel || !slotCapacity || !slotSortOrder} data-testid="button-create-slot"><Plus size={16} /> Add slot</Button>
+            </form>
+          </Card>
+
+          <Card className="border-0 paper-shadow">
+            <div className="border-b border-[hsl(var(--border))] p-5">
+              <h3 className="font-serif text-lg font-bold">Appointment Slot Slots Configuration</h3>
+            </div>
+            {slots.isLoading ? (
+              <div className="p-5"><LoadingBlock lines={4} /></div>
+            ) : slots.data?.length ? (
+              <div className="divide-y divide-[hsl(var(--border))]">
+                {slots.data.map((slot: AppointmentSlotAdmin) => (
+                  <div className="flex items-center gap-4 p-5" key={slot.id} data-testid={`row-slot-${slot.id}`}>
+                    <div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--secondary))]/10 text-[hsl(var(--secondary))]"><CalendarDays size={18} /></div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-sm">{slot.label}</p>
+                      <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Capacity: {slot.capacity} · Sort Order: {slot.sortOrder} · {slot.active ? 'Active' : 'Disabled'}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => handleDeleteSlot(slot.id)} disabled={deleteSlot.isPending} data-testid={`button-delete-slot-${slot.id}`}><Trash2 size={16} /></Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-10 text-center">
+                <CalendarDays className="mx-auto text-[hsl(var(--muted-foreground))]" size={30} />
+                <p className="mt-3 font-semibold">No appointment slots configured</p>
+                <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Add 5-minute increment slots above to enable bookings.</p>
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    </OfficeShell>
+  );
 }
 
+// ---------------------------------------------------------------------------
+// Root Router
+// ---------------------------------------------------------------------------
+
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/book" component={Book} /><Route path="/qr" component={QRPage} /><Route path="/status/:token" component={Status} /><Route path="/appointments" component={Appointments} /><Route path="/admin" component={AdminPage} /><Route path="/office/analytics" component={Analytics} /><Route path="/office/search" component={SearchPage} /><Route path="/office" component={Office} /><Route component={NotFound} /></Switch>;
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/book" component={Book} />
+      <Route path="/qr" component={QRPage} />
+      <Route path="/status/:token" component={Status} />
+      <Route path="/login" component={Login} />
+
+      {/* Protected Routes */}
+      <ProtectedRoute path="/office" component={Office} allowedRoles={['admin', 'ceo', 'reception']} />
+      <ProtectedRoute path="/appointments" component={Appointments} allowedRoles={['admin', 'ceo', 'reception']} />
+      <ProtectedRoute path="/office/analytics" component={Analytics} allowedRoles={['admin', 'ceo']} />
+      <ProtectedRoute path="/office/search" component={SearchPage} allowedRoles={['admin', 'ceo', 'reception', 'officer']} />
+      <ProtectedRoute path="/admin" component={AdminPage} allowedRoles={['admin']} />
+
+      <Route component={NotFound} />
+    </Switch>
+  );
 }
 
 function RoutedErrorBoundary({ children }: { children: React.ReactNode }) {
@@ -283,7 +1597,18 @@ function RoutedErrorBoundary({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><RoutedErrorBoundary><Router /></RoutedErrorBoundary></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <RoutedErrorBoundary>
+            <Router />
+          </RoutedErrorBoundary>
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
 }
 
 export default App;

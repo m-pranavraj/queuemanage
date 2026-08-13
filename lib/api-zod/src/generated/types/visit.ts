@@ -31,6 +31,7 @@ export interface Visit {
   appointmentDate?: Date | null;
   /** @nullable */
   appointmentSlot?: string | null;
+  appointmentDuration?: number;
   priority: string;
   status: string;
   queuePosition: number;

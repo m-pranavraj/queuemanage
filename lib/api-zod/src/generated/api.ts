@@ -18,6 +18,23 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * Logs in office staff and returns a JWT session token
+ * @summary User login
+ */
+export const LoginBody = zod.object({
+  "username": zod.string(),
+  "password": zod.string()
+})
+
+export const LoginResponse = zod.object({
+  "token": zod.string(),
+  "username": zod.string(),
+  "role": zod.string(),
+  "fullName": zod.string()
+})
+
+
+/**
  * @summary Get appointment availability
  */
 export const GetAvailabilityQueryParams = zod.object({
@@ -44,6 +61,7 @@ export const createVisitBodyMobileMin = 10;
 
 export const createVisitBodyDescriptionMax = 250;
 
+export const createVisitBodyAppointmentDurationDefault = 5;
 export const createVisitBodyPriorityDefault = `normal`;
 
 export const CreateVisitBody = zod.object({
@@ -63,8 +81,11 @@ export const CreateVisitBody = zod.object({
   "visitType": zod.enum(['appointment', 'walk_in']),
   "appointmentDate": zod.coerce.date().nullish(),
   "appointmentSlot": zod.string().nullish(),
-  "priority": zod.enum(['normal', 'priority', 'official']).default(createVisitBodyPriorityDefault)
+  "appointmentDuration": zod.number().default(createVisitBodyAppointmentDurationDefault),
+  "priority": zod.enum(['normal', 'priority', 'official', 'vvip']).default(createVisitBodyPriorityDefault)
 })
+
+export const createVisitResponseAppointmentDurationDefault = 5;
 
 export const CreateVisitResponse = zod.object({
   "id": zod.number(),
@@ -85,6 +106,7 @@ export const CreateVisitResponse = zod.object({
   "visitType": zod.string(),
   "appointmentDate": zod.coerce.date().nullish(),
   "appointmentSlot": zod.string().nullish(),
+  "appointmentDuration": zod.number().default(createVisitResponseAppointmentDurationDefault),
   "priority": zod.string(),
   "status": zod.string(),
   "queuePosition": zod.number(),
@@ -106,6 +128,8 @@ export const GetVisitStatusParams = zod.object({
   "token": zod.coerce.string()
 })
 
+export const getVisitStatusResponseAppointmentDurationDefault = 5;
+
 export const GetVisitStatusResponse = zod.object({
   "id": zod.number(),
   "token": zod.string(),
@@ -125,6 +149,7 @@ export const GetVisitStatusResponse = zod.object({
   "visitType": zod.string(),
   "appointmentDate": zod.coerce.date().nullish(),
   "appointmentSlot": zod.string().nullish(),
+  "appointmentDuration": zod.number().default(getVisitStatusResponseAppointmentDurationDefault),
   "priority": zod.string(),
   "status": zod.string(),
   "queuePosition": zod.number(),
@@ -197,6 +222,8 @@ export const GetOfficeVisitParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getOfficeVisitResponseAppointmentDurationDefault = 5;
+
 export const GetOfficeVisitResponse = zod.object({
   "id": zod.number(),
   "token": zod.string(),
@@ -216,6 +243,7 @@ export const GetOfficeVisitResponse = zod.object({
   "visitType": zod.string(),
   "appointmentDate": zod.coerce.date().nullish(),
   "appointmentSlot": zod.string().nullish(),
+  "appointmentDuration": zod.number().default(getOfficeVisitResponseAppointmentDurationDefault),
   "priority": zod.string(),
   "status": zod.string(),
   "queuePosition": zod.number(),
@@ -269,6 +297,8 @@ export const SaveVisitOutcomeBody = zod.object({
   "followUpDate": zod.coerce.date().nullish()
 })
 
+export const saveVisitOutcomeResponseAppointmentDurationDefault = 5;
+
 export const SaveVisitOutcomeResponse = zod.object({
   "id": zod.number(),
   "token": zod.string(),
@@ -288,6 +318,7 @@ export const SaveVisitOutcomeResponse = zod.object({
   "visitType": zod.string(),
   "appointmentDate": zod.coerce.date().nullish(),
   "appointmentSlot": zod.string().nullish(),
+  "appointmentDuration": zod.number().default(saveVisitOutcomeResponseAppointmentDurationDefault),
   "priority": zod.string(),
   "status": zod.string(),
   "queuePosition": zod.number(),
@@ -309,6 +340,8 @@ export const SearchOfficeVisitsQueryParams = zod.object({
   "query": zod.coerce.string()
 })
 
+export const searchOfficeVisitsResponseAppointmentDurationDefault = 5;
+
 export const SearchOfficeVisitsResponseItem = zod.object({
   "id": zod.number(),
   "token": zod.string(),
@@ -328,6 +361,7 @@ export const SearchOfficeVisitsResponseItem = zod.object({
   "visitType": zod.string(),
   "appointmentDate": zod.coerce.date().nullish(),
   "appointmentSlot": zod.string().nullish(),
+  "appointmentDuration": zod.number().default(searchOfficeVisitsResponseAppointmentDurationDefault),
   "priority": zod.string(),
   "status": zod.string(),
   "queuePosition": zod.number(),
@@ -380,6 +414,8 @@ export const GetOfficeAppointmentsQueryParams = zod.object({
   "date": zod.date()
 })
 
+export const getOfficeAppointmentsResponseAppointmentDurationDefault = 5;
+
 export const GetOfficeAppointmentsResponseItem = zod.object({
   "id": zod.number(),
   "token": zod.string(),
@@ -399,6 +435,7 @@ export const GetOfficeAppointmentsResponseItem = zod.object({
   "visitType": zod.string(),
   "appointmentDate": zod.coerce.date().nullish(),
   "appointmentSlot": zod.string().nullish(),
+  "appointmentDuration": zod.number().default(getOfficeAppointmentsResponseAppointmentDurationDefault),
   "priority": zod.string(),
   "status": zod.string(),
   "queuePosition": zod.number(),
@@ -461,5 +498,50 @@ export const DeleteOfficeSlotParams = zod.object({
 })
 
 export const DeleteOfficeSlotResponse = zod.void()
+
+
+/**
+ * @summary Get all user accounts
+ */
+export const GetOfficeUsersResponseItem = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "role": zod.string(),
+  "fullName": zod.string(),
+  "department": zod.string().nullish(),
+  "active": zod.boolean()
+})
+export const GetOfficeUsersResponse = zod.array(GetOfficeUsersResponseItem)
+
+
+/**
+ * @summary Create a user account
+ */
+export const CreateOfficeUserBody = zod.object({
+  "username": zod.string(),
+  "password": zod.string(),
+  "fullName": zod.string(),
+  "role": zod.string(),
+  "department": zod.string().nullish()
+})
+
+export const CreateOfficeUserResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "role": zod.string(),
+  "fullName": zod.string(),
+  "department": zod.string().nullish(),
+  "active": zod.boolean()
+})
+
+
+/**
+ * @summary Delete a user account
+ */
+export const DeleteOfficeUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteOfficeUserResponse = zod.void()
 
 

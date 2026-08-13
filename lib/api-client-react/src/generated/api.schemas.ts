@@ -54,6 +54,7 @@ export const VisitInputPriority = {
   normal: 'normal',
   priority: 'priority',
   official: 'official',
+  vvip: 'vvip',
 } as const;
 
 export interface VisitInput {
@@ -82,6 +83,7 @@ export interface VisitInput {
   appointmentDate?: string | null;
   /** @nullable */
   appointmentSlot?: string | null;
+  appointmentDuration?: number;
   priority?: VisitInputPriority;
 }
 
@@ -110,6 +112,7 @@ export interface Visit {
   appointmentDate?: string | null;
   /** @nullable */
   appointmentSlot?: string | null;
+  appointmentDuration?: number;
   priority: string;
   status: string;
   queuePosition: number;
@@ -210,6 +213,37 @@ export interface Analytics {
   categories: MetricBreakdown[];
   departments: MetricBreakdown[];
   outcomes: MetricBreakdown[];
+}
+
+export interface LoginInput {
+  username: string;
+  password: string;
+}
+
+export interface LoginResult {
+  token: string;
+  username: string;
+  role: string;
+  fullName: string;
+}
+
+export interface UserInput {
+  username: string;
+  password: string;
+  fullName: string;
+  role: string;
+  /** @nullable */
+  department?: string | null;
+}
+
+export interface UserResponse {
+  id: number;
+  username: string;
+  role: string;
+  fullName: string;
+  /** @nullable */
+  department?: string | null;
+  active: boolean;
 }
 
 export type GetAvailabilityParams = {

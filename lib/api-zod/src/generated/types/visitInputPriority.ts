@@ -13,4 +13,5 @@ export const VisitInputPriority = {
   normal: 'normal',
   priority: 'priority',
   official: 'official',
+  vvip: 'vvip',
 } as const;

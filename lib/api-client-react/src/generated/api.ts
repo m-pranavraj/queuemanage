@@ -28,10 +28,14 @@ import type {
   GetAvailabilityParams,
   GetOfficeAppointmentsParams,
   HealthStatus,
+  LoginInput,
+  LoginResult,
   OutcomeInput,
   QueueActionInput,
   QueueEntry,
   SearchOfficeVisitsParams,
+  UserInput,
+  UserResponse,
   Visit,
   VisitInput
 } from './api.schemas';
@@ -140,6 +144,78 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+
+export const getLoginUrl = () => {
+
+
+
+
+  return `/api/auth/login`
+}
+
+/**
+ * Logs in office staff and returns a JWT session token
+ * @summary User login
+ */
+export const login = async (loginInput: LoginInput, options?: Parameters<typeof customFetch>[1]): Promise<LoginResult> => {
+
+  return customFetch<LoginResult>(getLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(loginInput)
+  }
+);}
+
+
+
+
+
+export const getLoginMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginInput>}, TContext> => {
+
+const mutationKey = ['login'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof login>>, {data: BodyType<LoginInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  login(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
+    export type LoginMutationBody = BodyType<LoginInput>
+    export type LoginMutationError = ErrorType<void>
+
+    /**
+ * @summary User login
+ */
+export const useLogin = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof login>>,
+        TError,
+        {data: BodyType<LoginInput>},
+        TContext
+      > => {
+      return useMutation(getLoginMutationOptions(options));
+    }
 
 export const getGetAvailabilityUrl = (params: GetAvailabilityParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -1210,5 +1286,224 @@ export const useDeleteOfficeSlot = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteOfficeSlotMutationOptions(options));
+    }
+
+export const getGetOfficeUsersUrl = () => {
+
+
+
+
+  return `/api/office/settings/users`
+}
+
+/**
+ * @summary Get all user accounts
+ */
+export const getOfficeUsers = async ( options?: Parameters<typeof customFetch>[1]): Promise<UserResponse[]> => {
+
+  return customFetch<UserResponse[]>(getGetOfficeUsersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeUsersQueryKey = () => {
+    return [
+    `/api/office/settings/users`
+    ] as const;
+    }
+
+
+export const getGetOfficeUsersQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeUsers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeUsersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeUsers>>> = ({ signal }) => getOfficeUsers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeUsersQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeUsers>>>
+export type GetOfficeUsersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get all user accounts
+ */
+
+export function useGetOfficeUsers<TData = Awaited<ReturnType<typeof getOfficeUsers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOfficeUserUrl = () => {
+
+
+
+
+  return `/api/office/settings/users`
+}
+
+/**
+ * @summary Create a user account
+ */
+export const createOfficeUser = async (userInput: UserInput, options?: Parameters<typeof customFetch>[1]): Promise<UserResponse> => {
+
+  return customFetch<UserResponse>(getCreateOfficeUserUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(userInput)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeUserMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeUser>>, TError,{data: BodyType<UserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeUser>>, TError,{data: BodyType<UserInput>}, TContext> => {
+
+const mutationKey = ['createOfficeUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeUser>>, {data: BodyType<UserInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createOfficeUser(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeUserMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeUser>>>
+    export type CreateOfficeUserMutationBody = BodyType<UserInput>
+    export type CreateOfficeUserMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a user account
+ */
+export const useCreateOfficeUser = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeUser>>, TError,{data: BodyType<UserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeUser>>,
+        TError,
+        {data: BodyType<UserInput>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeUserMutationOptions(options));
+    }
+
+export const getDeleteOfficeUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/office/settings/users/${id}`
+}
+
+/**
+ * @summary Delete a user account
+ */
+export const deleteOfficeUser = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteOfficeUserUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteOfficeUserMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOfficeUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteOfficeUser>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteOfficeUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOfficeUser>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteOfficeUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteOfficeUserMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOfficeUser>>>
+
+    export type DeleteOfficeUserMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a user account
+ */
+export const useDeleteOfficeUser = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOfficeUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteOfficeUser>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteOfficeUserMutationOptions(options));
     }
 

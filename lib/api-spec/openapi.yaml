@@ -28,6 +28,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [office]
+      summary: User login
+      description: Logs in office staff and returns a JWT session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+        "401":
+          description: Unauthorized
   /availability:
     get:
       operationId: getAvailability
@@ -275,6 +296,51 @@ paths:
       responses:
         "204":
           description: Appointment slot deleted
+  /office/settings/users:
+    get:
+      operationId: getOfficeUsers
+      tags: [office]
+      summary: Get all user accounts
+      responses:
+        "200":
+          description: List of user accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserResponse"
+    post:
+      operationId: createOfficeUser
+      tags: [office]
+      summary: Create a user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: User account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+  /office/settings/users/{id}:
+    delete:
+      operationId: deleteOfficeUser
+      tags: [office]
+      summary: Delete a user account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: User account deleted
 components:
   schemas:
     HealthStatus:
@@ -350,9 +416,10 @@ components:
           enum: [appointment, walk_in]
         appointmentDate: { type: ["string", "null"], format: date }
         appointmentSlot: { type: ["string", "null"] }
+        appointmentDuration: { type: number, default: 5 }
         priority:
           type: string
-          enum: [normal, priority, official]
+          enum: [normal, priority, official, vvip]
           default: normal
     Visit:
       type: object
@@ -392,6 +459,7 @@ components:
         visitType: { type: string }
         appointmentDate: { type: ["string", "null"], format: date }
         appointmentSlot: { type: ["string", "null"] }
+        appointmentDuration: { type: number, default: 5 }
         priority: { type: string }
         status: { type: string }
         queuePosition: { type: number }
@@ -482,4 +550,37 @@ components:
         label: { type: string }
         value: { type: number }
         share: { type: number }
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    LoginResult:
+      type: object
+      required: [token, username, role, fullName]
+      properties:
+        token: { type: string }
+        username: { type: string }
+        role: { type: string }
+        fullName: { type: string }
+    UserInput:
+      type: object
+      required: [username, password, fullName, role]
+      properties:
+        username: { type: string }
+        password: { type: string }
+        fullName: { type: string }
+        role: { type: string }
+        department: { type: ["string", "null"] }
+    UserResponse:
+      type: object
+      required: [id, username, role, fullName, active]
+      properties:
+        id: { type: number }
+        username: { type: string }
+        role: { type: string }
+        fullName: { type: string }
+        department: { type: ["string", "null"] }
+        active: { type: boolean }
 

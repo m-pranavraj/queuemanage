@@ -34,5 +34,6 @@ export interface VisitInput {
   appointmentDate?: Date | null;
   /** @nullable */
   appointmentSlot?: string | null;
+  appointmentDuration?: number;
   priority?: VisitInputPriority;
 }
