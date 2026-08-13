@@ -1,4 +1,5 @@
 {
+  "outputDirectory": "artifacts/zp-sampark/dist/public",
   "rewrites": [
     {
       "source": "/api/(.*)",
