@@ -1,10 +1,11 @@
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "target": "es2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "strict": false
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node", "express", "cors", "pino-http"],
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true
   }
 }
