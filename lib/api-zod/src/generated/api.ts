@@ -373,3 +373,93 @@ export const GetOfficeAnalyticsResponse = zod.object({
 })
 
 
+/**
+ * @summary Get appointments for a date
+ */
+export const GetOfficeAppointmentsQueryParams = zod.object({
+  "date": zod.date()
+})
+
+export const GetOfficeAppointmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "token": zod.string(),
+  "fullName": zod.string(),
+  "mobile": zod.string(),
+  "taluka": zod.string(),
+  "location": zod.string(),
+  "organisation": zod.string().nullish(),
+  "purpose": zod.string(),
+  "category": zod.string(),
+  "department": zod.string(),
+  "description": zod.string(),
+  "previouslyApproached": zod.boolean().optional(),
+  "previousDepartment": zod.string().nullish(),
+  "previousDate": zod.coerce.date().nullish(),
+  "previousReference": zod.string().nullish(),
+  "visitType": zod.string(),
+  "appointmentDate": zod.coerce.date().nullish(),
+  "appointmentSlot": zod.string().nullish(),
+  "priority": zod.string(),
+  "status": zod.string(),
+  "queuePosition": zod.number(),
+  "estimatedWait": zod.number(),
+  "registeredAt": zod.coerce.date(),
+  "outcome": zod.string().nullish(),
+  "referredTo": zod.string().nullish(),
+  "referenceNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "followUpDate": zod.coerce.date().nullish(),
+  "previousVisits": zod.number().optional()
+})
+export const GetOfficeAppointmentsResponse = zod.array(GetOfficeAppointmentsResponseItem)
+
+
+/**
+ * @summary Get configured appointment slots
+ */
+export const GetOfficeSlotsResponseItem = zod.object({
+  "id": zod.number(),
+  "label": zod.string(),
+  "capacity": zod.number(),
+  "active": zod.boolean(),
+  "sortOrder": zod.number()
+})
+export const GetOfficeSlotsResponse = zod.array(GetOfficeSlotsResponseItem)
+
+
+/**
+ * @summary Create an appointment slot
+ */
+
+
+export const createOfficeSlotBodyActiveDefault = true;
+export const createOfficeSlotBodySortOrderMin = 0;
+
+
+
+export const CreateOfficeSlotBody = zod.object({
+  "label": zod.string().min(1),
+  "capacity": zod.number().min(1),
+  "active": zod.boolean().default(createOfficeSlotBodyActiveDefault),
+  "sortOrder": zod.number().min(createOfficeSlotBodySortOrderMin)
+})
+
+export const CreateOfficeSlotResponse = zod.object({
+  "id": zod.number(),
+  "label": zod.string(),
+  "capacity": zod.number(),
+  "active": zod.boolean(),
+  "sortOrder": zod.number()
+})
+
+
+/**
+ * @summary Delete an appointment slot
+ */
+export const DeleteOfficeSlotParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteOfficeSlotResponse = zod.void()
+
+

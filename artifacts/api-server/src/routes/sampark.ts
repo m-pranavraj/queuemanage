@@ -1,14 +1,35 @@
 import { Router, type IRouter } from "express";
-import { asc, desc, eq, ilike, or } from "drizzle-orm";
-import { db, visitsTable, type Visit } from "@workspace/db";
 import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  lte,
+  or,
+} from "drizzle-orm";
+import {
+  appointmentSlotsTable,
+  db,
+  visitsTable,
+  type Visit,
+} from "@workspace/db";
+import {
+  CreateOfficeSlotBody,
+  CreateOfficeSlotResponse,
   CreateVisitBody,
   CreateVisitResponse,
+  DeleteOfficeSlotParams,
   GetAvailabilityQueryParams,
   GetAvailabilityResponse,
   GetOfficeAnalyticsResponse,
+  GetOfficeAppointmentsQueryParams,
+  GetOfficeAppointmentsResponse,
   GetOfficeDashboardResponse,
   GetOfficeQueueResponse,
+  GetOfficeSlotsResponse,
   GetOfficeVisitParams,
   GetOfficeVisitResponse,
   GetVisitStatusParams,
@@ -25,133 +46,49 @@ import {
 
 const router: IRouter = Router();
 
-let seedPromise: Promise<void> | undefined;
+const indiaDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kolkata",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
-async function ensureSeedData(): Promise<void> {
-  if (!seedPromise) {
-    seedPromise = (async () => {
-      const existing = await db.select({ id: visitsTable.id }).from(visitsTable).limit(1);
-      if (existing.length > 0) return;
+function indiaDate(): string {
+  return indiaDateFormatter.format(new Date());
+}
 
-      const today = new Date().toISOString().slice(0, 10);
-      await db.insert(visitsTable).values([
-        {
-          token: "CEO-021",
-          fullName: "Rajesh Patil",
-          mobile: "98220 44120",
-          taluka: "Baramati",
-          location: "Nimbut",
-          organisation: null,
-          purpose: "Water supply grievance",
-          category: "Water",
-          department: "Rural Water Supply",
-          description: "Irregular water supply affecting three hamlets in Nimbut village.",
-          previouslyApproached: true,
-          previousDepartment: "Block Development Office",
-          previousDate: "2026-07-23",
-          previousReference: "BDO/WS/2026/089",
-          visitType: "walk_in",
-          appointmentDate: today,
-          appointmentSlot: null,
-          priority: "normal",
-          status: "waiting",
-          queuePosition: 1,
-          estimatedWait: 42,
-          previousVisits: 2,
-        },
-        {
-          token: "CEO-022",
-          fullName: "Sunita Jadhav",
-          mobile: "97641 22018",
-          taluka: "Daund",
-          location: "Kedgaon",
-          organisation: null,
-          purpose: "School repair request",
-          category: "Education",
-          department: "Education",
-          description: "Classroom roof repairs are needed before the monsoon term.",
-          previouslyApproached: true,
-          previousDepartment: "Block Education Office",
-          previousDate: "2026-08-01",
-          previousReference: "BEO/EDU/2026/132",
-          visitType: "appointment",
-          appointmentDate: today,
-          appointmentSlot: "02:30 PM",
-          priority: "priority",
-          status: "waiting",
-          queuePosition: 2,
-          estimatedWait: 35,
-          previousVisits: 1,
-        },
-        {
-          token: "CEO-023",
-          fullName: "Gram Panchayat Malegaon",
-          mobile: "90110 77831",
-          taluka: "Indapur",
-          location: "Malegaon",
-          organisation: "Gram Panchayat Malegaon",
-          purpose: "Panchayat development proposal",
-          category: "Rural Development",
-          department: "Rural Development",
-          description: "Proposal for a community water harvesting project.",
-          previouslyApproached: false,
-          previousDepartment: null,
-          previousDate: null,
-          previousReference: null,
-          visitType: "walk_in",
-          appointmentDate: today,
-          appointmentSlot: null,
-          priority: "normal",
-          status: "waiting",
-          queuePosition: 3,
-          estimatedWait: 28,
-          previousVisits: 0,
-        },
-        {
-          token: "CEO-020",
-          fullName: "Anita More",
-          mobile: "98810 11409",
-          taluka: "Mawal",
-          location: "Talegaon",
-          organisation: null,
-          purpose: "Road access follow-up",
-          category: "Roads",
-          department: "Works & Roads",
-          description: "Follow-up on the approach road sanction for Talegaon.",
-          previouslyApproached: true,
-          previousDepartment: "Works Division",
-          previousDate: "2026-07-11",
-          previousReference: "WD/ROAD/2026/041",
-          visitType: "appointment",
-          appointmentDate: today,
-          appointmentSlot: "12:00 PM",
-          priority: "normal",
-          status: "completed",
-          queuePosition: 0,
-          estimatedWait: 18,
-          outcome: "resolved",
-          referenceNumber: "ZP/CEO/2026/001240",
-          notes: "Approach road work order issued.",
-          previousVisits: 1,
-        },
-      ]);
-    })();
-  }
-  await seedPromise;
+function dateBounds(dateKey: string): { start: Date; end: Date } {
+  return {
+    start: new Date(`${dateKey}T00:00:00+05:30`),
+    end: new Date(`${dateKey}T23:59:59.999+05:30`),
+  };
+}
+
+function calendarDate(
+  value: Date | string | null | undefined,
+): string | null | undefined {
+  if (value == null || typeof value === "string") return value;
+  return value.toISOString().slice(0, 10);
+}
+
+function parseQueryDate(value: unknown): Date | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string" || raw.length === 0) return undefined;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
 function queueEntry(visit: Visit) {
-  const waitingMinutes = Math.max(
-    0,
-    Math.round((Date.now() - visit.registeredAt.getTime()) / 60000),
-  );
   return {
     id: visit.id,
     token: visit.token,
     fullName: visit.fullName,
     purpose: visit.purpose,
     department: visit.department,
-    waitingMinutes: Math.max(visit.estimatedWait, waitingMinutes),
+    waitingMinutes: Math.max(
+      0,
+      Math.round((Date.now() - visit.registeredAt.getTime()) / 60000),
+    ),
     priority: visit.priority,
     status: visit.status,
     location: visit.location,
@@ -161,30 +98,65 @@ function queueEntry(visit: Visit) {
 function visitResponse(visit: Visit) {
   return {
     ...visit,
-    queuePosition: visit.status === "waiting" ? visit.queuePosition : 0,
-    estimatedWait:
-      visit.status === "waiting" ? Math.max(visit.estimatedWait, 0) : 0,
-    registeredAt: visit.registeredAt,
+    queuePosition: ["waiting", "called", "held"].includes(visit.status)
+      ? visit.queuePosition
+      : 0,
+    estimatedWait: 0,
     previousVisits: visit.previousVisits ?? 0,
   };
 }
 
-function calendarDate(value: Date | string | null | undefined): string | null | undefined {
-  if (value == null || typeof value === "string") return value;
-  return value.toISOString().slice(0, 10);
+async function allVisits(todayOnly = false): Promise<Visit[]> {
+  const query = db.select().from(visitsTable);
+  if (todayOnly) {
+    return query
+      .where(eq(visitsTable.visitDate, indiaDate()))
+      .orderBy(asc(visitsTable.queuePosition), desc(visitsTable.registeredAt));
+  }
+  return query.orderBy(desc(visitsTable.registeredAt));
 }
 
-async function allVisits(): Promise<Visit[]> {
-  await ensureSeedData();
-  return db.select().from(visitsTable).orderBy(asc(visitsTable.queuePosition), desc(visitsTable.registeredAt));
+async function currentQueueCount(): Promise<number> {
+  const [result] = await db
+    .select({ total: count() })
+    .from(visitsTable)
+    .where(
+      and(
+        eq(visitsTable.visitDate, indiaDate()),
+        or(
+          eq(visitsTable.status, "waiting"),
+          eq(visitsTable.status, "called"),
+          eq(visitsTable.status, "held"),
+        ),
+      ),
+    );
+  return Number(result?.total ?? 0);
+}
+
+async function reindexTodayQueue(): Promise<void> {
+  const queue = await db
+    .select({ id: visitsTable.id })
+    .from(visitsTable)
+    .where(
+      and(
+        eq(visitsTable.visitDate, indiaDate()),
+        eq(visitsTable.status, "waiting"),
+      ),
+    )
+    .orderBy(asc(visitsTable.registeredAt));
+  await Promise.all(
+    queue.map((entry, index) =>
+      db
+        .update(visitsTable)
+        .set({ queuePosition: index + 1 })
+        .where(eq(visitsTable.id, entry.id)),
+    ),
+  );
 }
 
 router.get("/availability", async (req, res): Promise<void> => {
-  const rawDate = Array.isArray(req.query.date)
-    ? req.query.date[0]
-    : req.query.date;
   const parsed = GetAvailabilityQueryParams.safeParse({
-    date: rawDate ? new Date(String(rawDate)) : undefined,
+    date: parseQueryDate(req.query.date),
   });
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -192,22 +164,43 @@ router.get("/availability", async (req, res): Promise<void> => {
   }
 
   const dateKey = parsed.data.date.toISOString().slice(0, 10);
-  const slots = [
-    ["12:00 PM", 4],
-    ["12:30 PM", 3],
-    ["02:30 PM", 5],
-    ["03:00 PM", 4],
-    ["03:30 PM", 6],
-    ["04:00 PM", 5],
-    ["04:30 PM", 3],
-  ].map(([label, remaining], index) => ({
-    id: `${dateKey}-${index + 1}`,
-    label,
-    available: Number(remaining) > 0,
-    remaining: Number(remaining),
-  }));
+  const slots = await db
+    .select()
+    .from(appointmentSlotsTable)
+    .where(eq(appointmentSlotsTable.active, true))
+    .orderBy(asc(appointmentSlotsTable.sortOrder));
+  const booked = await db
+    .select({
+      appointmentSlot: visitsTable.appointmentSlot,
+      total: count(),
+    })
+    .from(visitsTable)
+    .where(
+      and(
+        eq(visitsTable.visitType, "appointment"),
+        eq(visitsTable.appointmentDate, dateKey),
+      ),
+    )
+    .groupBy(visitsTable.appointmentSlot);
+  const bookedBySlot = new Map(
+    booked.map((entry) => [entry.appointmentSlot ?? "", Number(entry.total)]),
+  );
 
-  res.json(GetAvailabilityResponse.parse({ date: parsed.data.date, slots }));
+  res.json(
+    GetAvailabilityResponse.parse({
+      date: parsed.data.date,
+      slots: slots.map((slot) => {
+        const used = bookedBySlot.get(String(slot.id)) ?? 0;
+        const remaining = Math.max(slot.capacity - used, 0);
+        return {
+          id: String(slot.id),
+          label: slot.label,
+          available: remaining > 0,
+          remaining,
+        };
+      }),
+    }),
+  );
 });
 
 router.post("/visits", async (req, res): Promise<void> => {
@@ -217,18 +210,15 @@ router.post("/visits", async (req, res): Promise<void> => {
     return;
   }
 
-  await ensureSeedData();
+  const appointmentDate = calendarDate(parsed.data.appointmentDate);
+  const visitDate = appointmentDate ?? indiaDate();
+  const queuePosition =
+    visitDate === indiaDate() ? (await currentQueueCount()) + 1 : 0;
   const current = await db
     .select({ id: visitsTable.id })
     .from(visitsTable)
     .orderBy(desc(visitsTable.id));
-  const nextId = (current[0]?.id ?? 0) + 1;
-  const active = await db
-    .select({ id: visitsTable.id })
-    .from(visitsTable)
-    .where(eq(visitsTable.status, "waiting"));
-  const queuePosition = active.length + 1;
-  const token = `CEO-${String(20 + nextId).padStart(3, "0")}`;
+  const token = `CEO-${String((current[0]?.id ?? 0) + 1).padStart(4, "0")}`;
 
   const [visit] = await db
     .insert(visitsTable)
@@ -247,13 +237,14 @@ router.post("/visits", async (req, res): Promise<void> => {
       previousDate: calendarDate(parsed.data.previousDate),
       previousReference: parsed.data.previousReference ?? null,
       visitType: parsed.data.visitType,
-      appointmentDate: calendarDate(parsed.data.appointmentDate),
+      visitDate,
+      appointmentDate,
       appointmentSlot: parsed.data.appointmentSlot ?? null,
       priority: parsed.data.priority ?? "normal",
       token,
       status: "waiting",
       queuePosition,
-      estimatedWait: queuePosition * 12,
+      estimatedWait: 0,
     })
     .returning();
 
@@ -266,8 +257,6 @@ router.get("/visits/:token", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-
-  await ensureSeedData();
   const [visit] = await db
     .select()
     .from(visitsTable)
@@ -276,34 +265,45 @@ router.get("/visits/:token", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Visit token not found" });
     return;
   }
-
   res.json(GetVisitStatusResponse.parse(visitResponse(visit)));
 });
 
 router.get("/office/dashboard", async (_req, res): Promise<void> => {
-  const visits = await allVisits();
-  const waiting = visits.filter((visit) => visit.status === "waiting");
+  const visits = await allVisits(true);
+  const waiting = visits.filter((visit) =>
+    ["waiting", "held"].includes(visit.status),
+  );
   const completed = visits.filter((visit) => visit.status === "completed");
   const pending = visits.filter((visit) =>
     ["referred", "action_required", "follow_up"].includes(visit.outcome ?? ""),
   );
+  const called = visits.find((visit) => visit.status === "called");
   const dashboard = {
     registered: visits.length,
     completed: completed.length,
     waiting: waiting.length,
     pending: pending.length,
-    averageWait: Math.round(
-      waiting.reduce((total, visit) => total + visit.estimatedWait, 0) /
-        Math.max(waiting.length, 1),
-    ),
-    nowMeeting: null,
+    averageWait: waiting.length
+      ? Math.round(
+          waiting.reduce(
+            (total, visit) =>
+              total +
+              Math.max(
+                0,
+                Math.round((Date.now() - visit.registeredAt.getTime()) / 60000),
+              ),
+            0,
+          ) / waiting.length,
+        )
+      : 0,
+    nowMeeting: called ? queueEntry(called) : null,
     nextVisitors: waiting.slice(0, 4).map(queueEntry),
   };
   res.json(GetOfficeDashboardResponse.parse(dashboard));
 });
 
 router.get("/office/queue", async (_req, res): Promise<void> => {
-  const visits = await allVisits();
+  const visits = await allVisits(true);
   const queue = visits
     .filter((visit) => ["waiting", "called", "held"].includes(visit.status))
     .sort((a, b) => a.queuePosition - b.queuePosition)
@@ -317,8 +317,6 @@ router.get("/office/visits/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-
-  await ensureSeedData();
   const [visit] = await db
     .select()
     .from(visitsTable)
@@ -342,7 +340,6 @@ router.patch("/office/queue/:id/action", async (req, res): Promise<void> => {
     return;
   }
 
-  await ensureSeedData();
   const [current] = await db
     .select()
     .from(visitsTable)
@@ -351,7 +348,6 @@ router.patch("/office/queue/:id/action", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Visit not found" });
     return;
   }
-
   const statusByAction: Record<string, string> = {
     call: "called",
     call_next: "called",
@@ -371,7 +367,7 @@ router.patch("/office/queue/:id/action", async (req, res): Promise<void> => {
     })
     .where(eq(visitsTable.id, params.data.id))
     .returning();
-
+  await reindexTodayQueue();
   res.json(UpdateQueueActionResponse.parse(queueEntry(updated)));
 });
 
@@ -386,8 +382,6 @@ router.post("/office/visits/:id/outcome", async (req, res): Promise<void> => {
     res.status(400).json({ error: body.error.message });
     return;
   }
-
-  await ensureSeedData();
   const [updated] = await db
     .update(visitsTable)
     .set({
@@ -395,7 +389,7 @@ router.post("/office/visits/:id/outcome", async (req, res): Promise<void> => {
       referredTo: body.data.referredTo ?? null,
       notes: body.data.notes ?? null,
       followUpDate: calendarDate(body.data.followUpDate) ?? null,
-      referenceNumber: `ZP/CEO/2026/${String(params.data.id).padStart(6, "0")}`,
+      referenceNumber: `ZP/CEO/${indiaDate().slice(0, 4)}/${String(params.data.id).padStart(6, "0")}`,
       status: "completed",
       completedAt: new Date(),
     })
@@ -405,6 +399,7 @@ router.post("/office/visits/:id/outcome", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Visit not found" });
     return;
   }
+  await reindexTodayQueue();
   res.json(SaveVisitOutcomeResponse.parse(visitResponse(updated)));
 });
 
@@ -416,8 +411,6 @@ router.get("/office/search", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-
-  await ensureSeedData();
   const query = `%${parsed.data.query}%`;
   const visits = await db
     .select()
@@ -434,16 +427,21 @@ router.get("/office/search", async (req, res): Promise<void> => {
       ),
     )
     .orderBy(desc(visitsTable.registeredAt));
-
   res.json(SearchOfficeVisitsResponse.parse(visits.map(visitResponse)));
 });
 
 router.get("/office/analytics", async (_req, res): Promise<void> => {
   const visits = await allVisits();
+  const today = indiaDate();
+  const todayBounds = dateBounds(today);
+  const weekStart = new Date(todayBounds.start);
+  weekStart.setDate(weekStart.getDate() - 6);
+  const monthStart = new Date(todayBounds.start);
+  monthStart.setDate(1);
   const countBy = (field: keyof Visit) => {
     const counts = new Map<string, number>();
     visits.forEach((visit) => {
-      const label = String(visit[field] ?? "Other");
+      const label = String(visit[field] ?? "Not recorded");
       counts.set(label, (counts.get(label) ?? 0) + 1);
     });
     return Array.from(counts.entries())
@@ -454,22 +452,84 @@ router.get("/office/analytics", async (_req, res): Promise<void> => {
       }))
       .sort((a, b) => b.value - a.value);
   };
-
+  const todayVisits = visits.filter((visit) => visit.visitDate === today);
+  const weeklyVisits = visits.filter((visit) => visit.registeredAt >= weekStart);
+  const monthlyVisits = visits.filter((visit) => visit.registeredAt >= monthStart);
+  const noShows = visits.filter((visit) => visit.status === "no_show").length;
   const analytics = {
-    today: visits.length,
-    weekly: visits.length + 18,
-    monthly: visits.length + 86,
-    unique: Math.max(visits.length - 1, 0),
+    today: todayVisits.length,
+    weekly: weeklyVisits.length,
+    monthly: monthlyVisits.length,
+    unique: new Set(visits.map((visit) => visit.mobile)).size,
     repeat: visits.filter((visit) => visit.previousVisits > 0).length,
     walkIns: visits.filter((visit) => visit.visitType === "walk_in").length,
     appointments: visits.filter((visit) => visit.visitType === "appointment").length,
-    noShowRate: 4.2,
+    noShowRate: visits.length ? Math.round((noShows / visits.length) * 1000) / 10 : 0,
     categories: countBy("category"),
     departments: countBy("department"),
     outcomes: countBy("outcome"),
   };
-
   res.json(GetOfficeAnalyticsResponse.parse(analytics));
+});
+
+router.get("/office/appointments", async (req, res): Promise<void> => {
+  const parsed = GetOfficeAppointmentsQueryParams.safeParse({
+    date: parseQueryDate(req.query.date),
+  });
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const dateKey = parsed.data.date.toISOString().slice(0, 10);
+  const appointments = await db
+    .select()
+    .from(visitsTable)
+    .where(
+      and(
+        eq(visitsTable.visitType, "appointment"),
+        eq(visitsTable.appointmentDate, dateKey),
+      ),
+    )
+    .orderBy(asc(visitsTable.appointmentSlot), asc(visitsTable.registeredAt));
+  res.json(GetOfficeAppointmentsResponse.parse(appointments.map(visitResponse)));
+});
+
+router.get("/office/settings/slots", async (_req, res): Promise<void> => {
+  const slots = await db
+    .select()
+    .from(appointmentSlotsTable)
+    .orderBy(asc(appointmentSlotsTable.sortOrder), asc(appointmentSlotsTable.id));
+  res.json(GetOfficeSlotsResponse.parse(slots));
+});
+
+router.post("/office/settings/slots", async (req, res): Promise<void> => {
+  const parsed = CreateOfficeSlotBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [slot] = await db
+    .insert(appointmentSlotsTable)
+    .values({
+      label: parsed.data.label,
+      capacity: parsed.data.capacity,
+      active: parsed.data.active ?? true,
+      sortOrder: parsed.data.sortOrder,
+    })
+    .returning();
+  res.status(201).json(CreateOfficeSlotResponse.parse(slot));
+});
+
+router.delete("/office/settings/slots/:id", async (req, res): Promise<void> => {
+  const params = DeleteOfficeSlotParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  await db
+    .delete(appointmentSlotsTable)
+    .where(eq(appointmentSlotsTable.id, params.data.id));
+  res.sendStatus(204);
 });
 
 export default router;

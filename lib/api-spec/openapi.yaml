@@ -209,6 +209,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Analytics"
+  /office/appointments:
+    get:
+      operationId: getOfficeAppointments
+      tags: [office]
+      summary: Get appointments for a date
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Appointments for the selected date
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Visit"
+  /office/settings/slots:
+    get:
+      operationId: getOfficeSlots
+      tags: [office]
+      summary: Get configured appointment slots
+      responses:
+        "200":
+          description: Appointment slot configuration
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppointmentSlotAdmin"
+    post:
+      operationId: createOfficeSlot
+      tags: [office]
+      summary: Create an appointment slot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentSlotInput"
+      responses:
+        "201":
+          description: Appointment slot created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentSlotAdmin"
+  /office/settings/slots/{id}:
+    delete:
+      operationId: deleteOfficeSlot
+      tags: [office]
+      summary: Delete an appointment slot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Appointment slot deleted
 components:
   schemas:
     HealthStatus:
@@ -235,6 +301,23 @@ components:
         label: { type: string }
         available: { type: boolean }
         remaining: { type: number }
+    AppointmentSlotAdmin:
+      type: object
+      required: [id, label, capacity, active, sortOrder]
+      properties:
+        id: { type: number }
+        label: { type: string }
+        capacity: { type: number }
+        active: { type: boolean }
+        sortOrder: { type: number }
+    AppointmentSlotInput:
+      type: object
+      required: [label, capacity, sortOrder]
+      properties:
+        label: { type: string, minLength: 1 }
+        capacity: { type: number, minimum: 1 }
+        active: { type: boolean, default: true }
+        sortOrder: { type: number, minimum: 0 }
     VisitInput:
       type: object
       required:

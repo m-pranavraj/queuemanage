@@ -21,6 +21,24 @@ export interface Availability {
   slots: AppointmentSlot[];
 }
 
+export interface AppointmentSlotAdmin {
+  id: number;
+  label: string;
+  capacity: number;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface AppointmentSlotInput {
+  /** @minLength 1 */
+  label: string;
+  /** @minimum 1 */
+  capacity: number;
+  active?: boolean;
+  /** @minimum 0 */
+  sortOrder: number;
+}
+
 export type VisitInputVisitType = typeof VisitInputVisitType[keyof typeof VisitInputVisitType];
 
 
@@ -200,5 +218,9 @@ date: string;
 
 export type SearchOfficeVisitsParams = {
 query: string;
+};
+
+export type GetOfficeAppointmentsParams = {
+date: string;
 };
 

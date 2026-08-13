@@ -27,6 +27,7 @@ export const visitsTable = pgTable("zp_visits", {
   previousDate: date("previous_date", { mode: "string" }),
   previousReference: text("previous_reference"),
   visitType: text("visit_type").notNull(),
+  visitDate: date("visit_date", { mode: "string" }).notNull(),
   appointmentDate: date("appointment_date", { mode: "string" }),
   appointmentSlot: text("appointment_slot"),
   priority: text("priority").notNull().default("normal"),

@@ -21,9 +21,12 @@ import type {
 
 import type {
   Analytics,
+  AppointmentSlotAdmin,
+  AppointmentSlotInput,
   Availability,
   DashboardSummary,
   GetAvailabilityParams,
+  GetOfficeAppointmentsParams,
   HealthStatus,
   OutcomeInput,
   QueueActionInput,
@@ -905,4 +908,307 @@ export function useGetOfficeAnalytics<TData = Awaited<ReturnType<typeof getOffic
 
 
 
+
+export const getGetOfficeAppointmentsUrl = (params: GetOfficeAppointmentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/office/appointments?${stringifiedParams}` : `/api/office/appointments`
+}
+
+/**
+ * @summary Get appointments for a date
+ */
+export const getOfficeAppointments = async (params: GetOfficeAppointmentsParams, options?: Parameters<typeof customFetch>[1]): Promise<Visit[]> => {
+
+  return customFetch<Visit[]>(getGetOfficeAppointmentsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeAppointmentsQueryKey = (params?: GetOfficeAppointmentsParams,) => {
+    return [
+    `/api/office/appointments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOfficeAppointmentsQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeAppointments>>, TError = ErrorType<unknown>>(params: GetOfficeAppointmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeAppointments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeAppointmentsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeAppointments>>> = ({ signal }) => getOfficeAppointments(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeAppointments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeAppointmentsQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeAppointments>>>
+export type GetOfficeAppointmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get appointments for a date
+ */
+
+export function useGetOfficeAppointments<TData = Awaited<ReturnType<typeof getOfficeAppointments>>, TError = ErrorType<unknown>>(
+ params: GetOfficeAppointmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeAppointments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeAppointmentsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOfficeSlotsUrl = () => {
+
+
+
+
+  return `/api/office/settings/slots`
+}
+
+/**
+ * @summary Get configured appointment slots
+ */
+export const getOfficeSlots = async ( options?: Parameters<typeof customFetch>[1]): Promise<AppointmentSlotAdmin[]> => {
+
+  return customFetch<AppointmentSlotAdmin[]>(getGetOfficeSlotsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOfficeSlotsQueryKey = () => {
+    return [
+    `/api/office/settings/slots`
+    ] as const;
+    }
+
+
+export const getGetOfficeSlotsQueryOptions = <TData = Awaited<ReturnType<typeof getOfficeSlots>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeSlots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOfficeSlotsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOfficeSlots>>> = ({ signal }) => getOfficeSlots({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOfficeSlots>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOfficeSlotsQueryResult = NonNullable<Awaited<ReturnType<typeof getOfficeSlots>>>
+export type GetOfficeSlotsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get configured appointment slots
+ */
+
+export function useGetOfficeSlots<TData = Awaited<ReturnType<typeof getOfficeSlots>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOfficeSlots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOfficeSlotsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOfficeSlotUrl = () => {
+
+
+
+
+  return `/api/office/settings/slots`
+}
+
+/**
+ * @summary Create an appointment slot
+ */
+export const createOfficeSlot = async (appointmentSlotInput: AppointmentSlotInput, options?: Parameters<typeof customFetch>[1]): Promise<AppointmentSlotAdmin> => {
+
+  return customFetch<AppointmentSlotAdmin>(getCreateOfficeSlotUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(appointmentSlotInput)
+  }
+);}
+
+
+
+
+
+export const getCreateOfficeSlotMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeSlot>>, TError,{data: BodyType<AppointmentSlotInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOfficeSlot>>, TError,{data: BodyType<AppointmentSlotInput>}, TContext> => {
+
+const mutationKey = ['createOfficeSlot'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOfficeSlot>>, {data: BodyType<AppointmentSlotInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createOfficeSlot(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOfficeSlotMutationResult = NonNullable<Awaited<ReturnType<typeof createOfficeSlot>>>
+    export type CreateOfficeSlotMutationBody = BodyType<AppointmentSlotInput>
+    export type CreateOfficeSlotMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create an appointment slot
+ */
+export const useCreateOfficeSlot = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOfficeSlot>>, TError,{data: BodyType<AppointmentSlotInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOfficeSlot>>,
+        TError,
+        {data: BodyType<AppointmentSlotInput>},
+        TContext
+      > => {
+      return useMutation(getCreateOfficeSlotMutationOptions(options));
+    }
+
+export const getDeleteOfficeSlotUrl = (id: number,) => {
+
+
+
+
+  return `/api/office/settings/slots/${id}`
+}
+
+/**
+ * @summary Delete an appointment slot
+ */
+export const deleteOfficeSlot = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteOfficeSlotUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteOfficeSlotMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOfficeSlot>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteOfficeSlot>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteOfficeSlot'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOfficeSlot>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteOfficeSlot(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteOfficeSlotMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOfficeSlot>>>
+
+    export type DeleteOfficeSlotMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete an appointment slot
+ */
+export const useDeleteOfficeSlot = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOfficeSlot>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteOfficeSlot>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteOfficeSlotMutationOptions(options));
+    }
 

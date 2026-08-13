@@ -8,9 +8,12 @@
 
 export * from './analytics';
 export * from './appointmentSlot';
+export * from './appointmentSlotAdmin';
+export * from './appointmentSlotInput';
 export * from './availability';
 export * from './dashboardSummary';
 export * from './getAvailabilityParams';
+export * from './getOfficeAppointmentsParams';
 export * from './healthStatus';
 export * from './metricBreakdown';
 export * from './outcomeInput';
