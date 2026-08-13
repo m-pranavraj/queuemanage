@@ -56586,7 +56586,14 @@ function getPool() {
         "DATABASE_URL must be set. Did you forget to provision a database?"
       );
     }
-    poolInstance = new Pool3({ connectionString: dbUrl });
+    poolInstance = new Pool3({
+      connectionString: dbUrl,
+      ssl: dbUrl.includes("supabase") || dbUrl.includes("amazonaws") || dbUrl.includes("neon") ? { rejectUnauthorized: false } : void 0,
+      connectionTimeoutMillis: 1e4,
+      idleTimeoutMillis: 3e4,
+      max: 3
+      // Low pool size for serverless
+    });
   }
   return poolInstance;
 }

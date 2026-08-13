@@ -15,7 +15,15 @@ export function getPool(): pg.Pool {
         "DATABASE_URL must be set. Did you forget to provision a database?",
       );
     }
-    poolInstance = new Pool({ connectionString: dbUrl });
+    poolInstance = new Pool({
+      connectionString: dbUrl,
+      ssl: dbUrl.includes('supabase') || dbUrl.includes('amazonaws') || dbUrl.includes('neon')
+        ? { rejectUnauthorized: false }
+        : undefined,
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
+      max: 3, // Low pool size for serverless
+    });
   }
   return poolInstance;
 }
