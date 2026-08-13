@@ -1,19 +1,36 @@
-import app from "../artifacts/api-server/src/app";
-import { seedDatabase } from "../artifacts/api-server/src/lib/seed";
+// @vercel/node compiles this file as CommonJS.
+// Dynamic import() is fully supported in CJS and can load ESM packages at runtime.
 
+let appPromise: Promise<any> | null = null;
 let seeded = false;
 
-// Middleware to ensure DB is seeded on first request
-(app as any).use(async (req: any, res: any, next: any) => {
-  if (!seeded) {
-    try {
-      await seedDatabase();
-      seeded = true;
-    } catch (err) {
-      console.error("Failed to seed database in serverless function:", err);
-    }
-  }
-  next();
-});
+function getApp() {
+  if (!appPromise) {
+    appPromise = (async () => {
+      const [{ default: app }, { seedDatabase }] = await Promise.all([
+        import("../artifacts/api-server/src/app"),
+        import("../artifacts/api-server/src/lib/seed"),
+      ]);
 
-export default app;
+      app.use(async (req: any, res: any, next: any) => {
+        if (!seeded) {
+          try {
+            await seedDatabase();
+            seeded = true;
+          } catch (err) {
+            console.error("DB seed error:", err);
+          }
+        }
+        next();
+      });
+
+      return app;
+    })();
+  }
+  return appPromise;
+}
+
+module.exports = async (req: any, res: any) => {
+  const app = await getApp();
+  return app(req, res);
+};
