@@ -4,6 +4,10 @@
   "installCommand": "pnpm install",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/index.cjs"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
