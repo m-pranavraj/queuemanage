@@ -1,11 +1,17 @@
 {
-  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "types": ["node", "express", "cors", "pino-http"],
+    "target": "es2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
     "strict": false,
-    "noImplicitAny": false,
-    "skipLibCheck": true
+    "noEmitOnError": false,
+    "baseUrl": ".",
+    "types": ["node", "express", "cors", "pino-http"],
+    "paths": {
+      "@workspace/db": ["../lib/db/src/index.ts"],
+      "@workspace/api-zod": ["../lib/api-zod/src/index.ts"]
+    }
   }
 }
