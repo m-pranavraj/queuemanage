@@ -150,8 +150,8 @@ function OfficeShell({ children, title, eyebrow }: { children: React.ReactNode; 
 
   // Define links visible to roles
   const allLinks = [
-    { href: '/office', label: t('live_desk'), icon: ListChecks, roles: ['admin', 'ceo', 'reception'] },
-    { href: '/appointments', label: t('appointments'), icon: CalendarDays, roles: ['admin', 'ceo', 'reception'] },
+    { href: '/office', label: t('live_desk'), icon: ListChecks, roles: ['admin', 'ceo', 'reception', 'officer'] },
+    { href: '/appointments', label: t('appointments'), icon: CalendarDays, roles: ['admin', 'ceo', 'reception', 'officer'] },
     { href: '/office/analytics', label: t('analytics'), icon: BarChart3, roles: ['admin', 'ceo'] },
     { href: '/office/search', label: t('visitor_records'), icon: FileSearch, roles: ['admin', 'ceo', 'reception', 'officer'] },
     { href: '/admin', label: t('admin_settings'), icon: Settings2, roles: ['admin'] },
