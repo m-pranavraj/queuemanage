@@ -1612,8 +1612,8 @@ function Router() {
       <Route path="/login" component={Login} />
 
       {/* Protected Routes */}
-      <ProtectedRoute path="/office" component={Office} allowedRoles={['admin', 'ceo', 'reception']} />
-      <ProtectedRoute path="/appointments" component={Appointments} allowedRoles={['admin', 'ceo', 'reception']} />
+      <ProtectedRoute path="/office" component={Office} allowedRoles={['admin', 'ceo', 'reception', 'officer']} />
+      <ProtectedRoute path="/appointments" component={Appointments} allowedRoles={['admin', 'ceo', 'reception', 'officer']} />
       <ProtectedRoute path="/office/analytics" component={Analytics} allowedRoles={['admin', 'ceo']} />
       <ProtectedRoute path="/office/search" component={SearchPage} allowedRoles={['admin', 'ceo', 'reception', 'officer']} />
       <ProtectedRoute path="/admin" component={AdminPage} allowedRoles={['admin']} />
