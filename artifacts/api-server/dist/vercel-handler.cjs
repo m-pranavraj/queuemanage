@@ -20634,7 +20634,7 @@ var require_route = __commonJS({
         sync = 0;
       }
     };
-    Route.prototype.all = function all(handler) {
+    Route.prototype.all = function all(handler2) {
       const callbacks = flatten.call(slice.call(arguments), Infinity);
       if (callbacks.length === 0) {
         throw new TypeError("argument handler is required");
@@ -20652,7 +20652,7 @@ var require_route = __commonJS({
       return this;
     };
     methods.forEach(function(method) {
-      Route.prototype[method] = function(handler) {
+      Route.prototype[method] = function(handler2) {
         const callbacks = flatten.call(slice.call(arguments), Infinity);
         if (callbacks.length === 0) {
           throw new TypeError("argument handler is required");
@@ -20855,17 +20855,17 @@ var require_router = __commonJS({
         }
       }
     };
-    Router4.prototype.use = function use(handler) {
+    Router4.prototype.use = function use(handler2) {
       let offset = 0;
       let path = "/";
-      if (typeof handler !== "function") {
-        let arg = handler;
+      if (typeof handler2 !== "function") {
+        let arg = handler2;
         while (Array.isArray(arg) && arg.length !== 0) {
           arg = arg[0];
         }
         if (typeof arg !== "function") {
           offset = 1;
-          path = handler;
+          path = handler2;
         }
       }
       const callbacks = flatten.call(slice.call(arguments, offset), Infinity);
@@ -57413,19 +57413,14 @@ async function seedDatabase() {
 }
 
 // src/vercel-handler.ts
-var seeded = false;
-app_default.use(async (req, _res, next) => {
-  if (!seeded) {
-    try {
-      await seedDatabase();
-      seeded = true;
-    } catch (err) {
-      console.error("DB seed error:", err);
-    }
-  }
-  next();
+var seedReady = seedDatabase().catch((err) => {
+  console.error("DB seed error on startup:", err);
 });
-var vercel_handler_default = app_default;
+var handler = async (req, res) => {
+  await seedReady;
+  return app_default(req, res);
+};
+var vercel_handler_default = handler;
 /*! Bundled license information:
 
 depd/index.js:
