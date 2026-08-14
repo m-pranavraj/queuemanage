@@ -57027,7 +57027,7 @@ router2.get("/visits/:token", async (req, res) => {
   }
   res.json(GetVisitStatusResponse.parse(visitResponse(visit)));
 });
-router2.get("/office/dashboard", requireAuth(["admin", "ceo", "reception"]), async (req, res) => {
+router2.get("/office/dashboard", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res) => {
   await performDailyReset();
   const visits = await allVisits(true);
   const waiting = visits.filter(
@@ -57057,7 +57057,7 @@ router2.get("/office/dashboard", requireAuth(["admin", "ceo", "reception"]), asy
   };
   res.json(GetOfficeDashboardResponse.parse(dashboard));
 });
-router2.get("/office/queue", requireAuth(["admin", "ceo", "reception"]), async (req, res) => {
+router2.get("/office/queue", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res) => {
   await performDailyReset();
   const visits = await allVisits(true);
   const queue = visits.filter((visit) => ["waiting", "called", "held"].includes(visit.status)).sort((a, b) => a.queuePosition - b.queuePosition).map(queueEntry);
@@ -57077,7 +57077,7 @@ router2.get("/office/visits/:id", requireAuth(["admin", "ceo", "reception", "off
   await logAudit(req, "view_visitor_brief", `Viewed visitor brief for ${visit.fullName} (${visit.token})`);
   res.json(GetOfficeVisitResponse.parse(visitResponse(visit)));
 });
-router2.patch("/office/queue/:id/action", requireAuth(["admin", "ceo", "reception"]), async (req, res) => {
+router2.patch("/office/queue/:id/action", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res) => {
   const params = UpdateQueueActionParams.safeParse(req.params);
   const body = UpdateQueueActionBody.safeParse(req.body);
   if (!params.success) {
@@ -57112,7 +57112,7 @@ router2.patch("/office/queue/:id/action", requireAuth(["admin", "ceo", "receptio
   await logAudit(req, "update_queue_status", `Changed status of ${current.fullName} (${current.token}) to ${status} via action ${body.data.action}`);
   res.json(UpdateQueueActionResponse.parse(queueEntry(updated)));
 });
-router2.post("/office/visits/:id/outcome", requireAuth(["admin", "ceo", "reception"]), async (req, res) => {
+router2.post("/office/visits/:id/outcome", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res) => {
   const params = SaveVisitOutcomeParams.safeParse(req.params);
   const body = SaveVisitOutcomeBody.safeParse(req.body);
   if (!params.success) {
@@ -57207,7 +57207,7 @@ router2.get("/office/analytics", requireAuth(["admin", "ceo"]), async (_req, res
   };
   res.json(GetOfficeAnalyticsResponse.parse(analytics));
 });
-router2.get("/office/appointments", requireAuth(["admin", "ceo", "reception"]), async (req, res) => {
+router2.get("/office/appointments", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res) => {
   const parsed = GetOfficeAppointmentsQueryParams.safeParse({
     date: parseQueryDate(req.query.date)
   });

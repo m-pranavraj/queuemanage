@@ -487,7 +487,7 @@ router.get("/visits/:token", async (req, res): Promise<void> => {
 // Protected Office Routes
 // ---------------------------------------------------------------------------
 
-router.get("/office/dashboard", requireAuth(["admin", "ceo", "reception"]), async (req, res): Promise<void> => {
+router.get("/office/dashboard", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res): Promise<void> => {
   await performDailyReset();
 
   const visits = await allVisits(true);
@@ -523,7 +523,7 @@ router.get("/office/dashboard", requireAuth(["admin", "ceo", "reception"]), asyn
   res.json(GetOfficeDashboardResponse.parse(dashboard));
 });
 
-router.get("/office/queue", requireAuth(["admin", "ceo", "reception"]), async (req, res): Promise<void> => {
+router.get("/office/queue", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res): Promise<void> => {
   await performDailyReset();
 
   const visits = await allVisits(true);
@@ -555,7 +555,7 @@ router.get("/office/visits/:id", requireAuth(["admin", "ceo", "reception", "offi
   res.json(GetOfficeVisitResponse.parse(visitResponse(visit)));
 });
 
-router.patch("/office/queue/:id/action", requireAuth(["admin", "ceo", "reception"]), async (req, res): Promise<void> => {
+router.patch("/office/queue/:id/action", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res): Promise<void> => {
   const params = UpdateQueueActionParams.safeParse(req.params);
   const body = UpdateQueueActionBody.safeParse(req.body);
   if (!params.success) {
@@ -602,7 +602,7 @@ router.patch("/office/queue/:id/action", requireAuth(["admin", "ceo", "reception
   res.json(UpdateQueueActionResponse.parse(queueEntry(updated)));
 });
 
-router.post("/office/visits/:id/outcome", requireAuth(["admin", "ceo", "reception"]), async (req, res): Promise<void> => {
+router.post("/office/visits/:id/outcome", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res): Promise<void> => {
   const params = SaveVisitOutcomeParams.safeParse(req.params);
   const body = SaveVisitOutcomeBody.safeParse(req.body);
   if (!params.success) {
@@ -723,7 +723,7 @@ router.get("/office/analytics", requireAuth(["admin", "ceo"]), async (_req, res)
   res.json(GetOfficeAnalyticsResponse.parse(analytics));
 });
 
-router.get("/office/appointments", requireAuth(["admin", "ceo", "reception"]), async (req, res): Promise<void> => {
+router.get("/office/appointments", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res): Promise<void> => {
   const parsed = GetOfficeAppointmentsQueryParams.safeParse({
     date: parseQueryDate(req.query.date),
   });
