@@ -1251,6 +1251,52 @@ function Analytics() {
 }
 
 function BreakdownCard({ title, eyebrow, items, icon }: { title: string; eyebrow: string; items: { label: string; value: number; share: number }[]; icon: React.ReactNode }) {
+  // Sort items to show the top items in the visualization first
+  const sorted = [...items].sort((a, b) => b.value - a.value);
+  const totalVal = sorted.reduce((acc, curr) => acc + curr.value, 0);
+
+  // Generate coordinates for SVG Donut chart representation
+  let accumulatedPercent = 0;
+  const slices = sorted.map((item, index) => {
+    const share = totalVal > 0 ? (item.value / totalVal) : 0;
+    const startPercent = accumulatedPercent;
+    accumulatedPercent += share;
+    
+    // Coordinates calculation
+    const getCoordinatesForPercent = (percent: number) => {
+      const x = Math.cos(2 * Math.PI * percent);
+      const y = Math.sin(2 * Math.PI * percent);
+      return [x, y];
+    };
+
+    const [startX, startY] = getCoordinatesForPercent(startPercent);
+    const [endX, endY] = getCoordinatesForPercent(accumulatedPercent);
+    const largeArcFlag = share > 0.5 ? 1 : 0;
+    const pathData = totalVal > 0 && share < 1 ? [
+      `M ${startX} ${startY}`, // Move to start
+      `A 1 1 0 ${largeArcFlag} 1 ${endX} ${endY}`, // Arc to end
+      `L 0 0` // Line back to center
+    ].join(' ') : '';
+
+    const colors = [
+      'hsl(var(--primary))',
+      'hsl(var(--secondary))',
+      '#059669', // Emerald
+      '#d97706', // Amber
+      '#dc2626', // Red
+      '#7c3aed', // Violet
+      '#2563eb', // Blue
+      '#db2777'  // Pink
+    ];
+    return {
+      pathData,
+      color: colors[index % colors.length],
+      label: item.label,
+      value: item.value,
+      share: Math.round(share * 100)
+    };
+  });
+
   return (
     <Card className="border-0 paper-shadow p-5 sm:p-6">
       <div className="flex items-start justify-between">
@@ -1261,18 +1307,51 @@ function BreakdownCard({ title, eyebrow, items, icon }: { title: string; eyebrow
         <span className="text-[hsl(var(--secondary))]">{icon}</span>
       </div>
       {items.length ? (
-        <div className="mt-6 space-y-4 max-h-[300px] overflow-y-auto pr-1">
-          {items.map((item, i) => (
-            <div key={item.label} data-testid={`row-breakdown-${eyebrow.toLowerCase()}-${i}`}>
-              <div className="flex items-center justify-between gap-4 text-xs font-semibold">
-                <span className="truncate">{item.label}</span>
-                <span className="shrink-0 font-mono text-xs text-[hsl(var(--muted-foreground))]">{item.value} · {Math.round(item.share)}%</span>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[hsl(var(--muted))]">
-                <div className={`h-full rounded-full ${i % 2 ? 'bg-[hsl(var(--secondary))]' : 'bg-[hsl(var(--primary))]'}`} style={{ width: `${Math.min(100, item.share)}%` }} />
-              </div>
+        <div className="mt-6 grid gap-6 md:grid-cols-[120px_1fr] items-center">
+          {/* Donut Chart representation using SVG */}
+          <div className="relative mx-auto w-28 h-28">
+            <svg viewBox="-1 -1 2 2" className="w-full h-full -rotate-90">
+              {totalVal === 0 ? (
+                <circle cx="0" cy="0" r="1" fill="hsl(var(--muted))" />
+              ) : slices.length === 1 || slices.some(s => s.share === 100) ? (
+                <circle cx="0" cy="0" r="1" fill={slices.find(s => s.value > 0)?.color || 'hsl(var(--primary))'} />
+              ) : (
+                slices.map((slice, i) => (
+                  slice.value > 0 && (
+                    <path
+                      key={i}
+                      d={slice.pathData}
+                      fill={slice.color}
+                    />
+                  )
+                ))
+              )}
+              {/* Inner cutout for donut effect */}
+              <circle cx="0" cy="0" r="0.6" fill="white" />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span className="text-lg font-extrabold text-[hsl(var(--secondary))]">{totalVal}</span>
+              <span className="text-[8px] font-bold text-[hsl(var(--muted-foreground))] uppercase">Total</span>
             </div>
-          ))}
+          </div>
+
+          {/* Bar metrics side list representation */}
+          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+            {slices.map((item, i) => (
+              <div key={item.label} data-testid={`row-breakdown-${eyebrow.toLowerCase()}-${i}`}>
+                <div className="flex items-center justify-between gap-4 text-xs font-semibold">
+                  <span className="truncate flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                    {item.label}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs text-[hsl(var(--muted-foreground))]">{item.value} · {item.share}%</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[hsl(var(--muted))]">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${item.share}%`, backgroundColor: item.color }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <p className="mt-6 text-xs text-[hsl(var(--muted-foreground))]">No statistics recorded yet.</p>
