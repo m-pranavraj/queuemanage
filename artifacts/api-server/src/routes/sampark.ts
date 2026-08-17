@@ -603,7 +603,7 @@ router.patch("/office/queue/:id/action", requireAuth(["admin", "ceo", "reception
 });
 
 router.patch("/office/queue/:id/promote", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res): Promise<void> => {
-  const visitId = parseInt(req.params.id, 10);
+  const visitId = parseInt(String(req.params.id), 10);
   if (isNaN(visitId)) {
     res.status(400).json({ error: "Invalid visit ID" });
     return;
@@ -818,7 +818,7 @@ router.delete("/office/settings/slots/:id", requireAuth(["admin"]), async (req, 
 });
 
 router.patch("/office/settings/slots/:id/toggle", requireAuth(["admin", "reception", "officer"]), async (req, res): Promise<void> => {
-  const slotId = parseInt(req.params.id, 10);
+  const slotId = parseInt(String(req.params.id), 10);
   if (isNaN(slotId)) {
     res.status(400).json({ error: "Invalid slot ID" });
     return;
