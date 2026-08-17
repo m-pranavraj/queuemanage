@@ -499,7 +499,7 @@ function Book() {
                 <div className="space-y-2">
                   <Label htmlFor="location" className="text-sm font-semibold">{t('village')}<span className="ml-1 text-[hsl(var(--primary))]*">*</span></Label>
                   <select id="location" name="location" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.location || (talukaVillages[String(form.taluka)]?.[0] || ''))} onChange={(e) => setValue('location', e.target.value)} data-testid="select-village" required>
-                    {(talukaVillages[String(form.taluka)] || []).map((village) => (
+                    {(talukaVillages[String(form.taluka)] || []).map((village: string) => (
                       <option key={village} value={village}>{village}</option>
                     ))}
                   </select>
