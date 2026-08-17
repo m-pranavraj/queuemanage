@@ -602,6 +602,34 @@ router.patch("/office/queue/:id/action", requireAuth(["admin", "ceo", "reception
   res.json(UpdateQueueActionResponse.parse(queueEntry(updated)));
 });
 
+router.patch("/office/queue/:id/promote", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res): Promise<void> => {
+  const visitId = parseInt(req.params.id, 10);
+  if (isNaN(visitId)) {
+    res.status(400).json({ error: "Invalid visit ID" });
+    return;
+  }
+
+  const [current] = await db
+    .select()
+    .from(visitsTable)
+    .where(eq(visitsTable.id, visitId));
+
+  if (!current) {
+    res.status(404).json({ error: "Visit not found" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(visitsTable)
+    .set({ priority: "priority" })
+    .where(eq(visitsTable.id, visitId))
+    .returning();
+
+  await logAudit(req, "promote_visitor", `Promoted visitor ${current.fullName} (${current.token}) to priority queue`);
+
+  res.json(visitResponse(updated));
+});
+
 router.post("/office/visits/:id/outcome", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res): Promise<void> => {
   const params = SaveVisitOutcomeParams.safeParse(req.params);
   const body = SaveVisitOutcomeBody.safeParse(req.body);
@@ -787,6 +815,34 @@ router.delete("/office/settings/slots/:id", requireAuth(["admin"]), async (req, 
   await logAudit(req, "delete_slot", `Deleted appointment slot ID: ${params.data.id}`);
 
   res.sendStatus(204);
+});
+
+router.patch("/office/settings/slots/:id/toggle", requireAuth(["admin", "reception", "officer"]), async (req, res): Promise<void> => {
+  const slotId = parseInt(req.params.id, 10);
+  if (isNaN(slotId)) {
+    res.status(400).json({ error: "Invalid slot ID" });
+    return;
+  }
+
+  const [currentSlot] = await db
+    .select()
+    .from(appointmentSlotsTable)
+    .where(eq(appointmentSlotsTable.id, slotId));
+
+  if (!currentSlot) {
+    res.status(404).json({ error: "Slot not found" });
+    return;
+  }
+
+  const [updatedSlot] = await db
+    .update(appointmentSlotsTable)
+    .set({ active: !currentSlot.active })
+    .where(eq(appointmentSlotsTable.id, slotId))
+    .returning();
+
+  await logAudit(req, "toggle_slot", `Toggled slot ${currentSlot.label} active state to ${updatedSlot.active}`);
+
+  res.json(updatedSlot);
 });
 
 router.get("/office/settings/users", requireAuth(["admin"]), async (_req, res): Promise<void> => {

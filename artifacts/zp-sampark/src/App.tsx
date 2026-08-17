@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { talukaVillages } from './lib/location-data';
 import { useTranslation } from './translations';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, useParams, Router as WouterRouter } from 'wouter';
@@ -324,7 +325,7 @@ function QRPage() {
 
 type BookState = Record<string, string | boolean | number>;
 const bookDefaults: BookState = {
-  fullName: '', mobile: '', taluka: 'Baramati', location: '', organisation: '',
+  fullName: '', mobile: '', taluka: 'Baramati', location: 'Baramati Rural', organisation: '',
   purpose: '', category: 'Grievance', department: 'Water & Sanitation', description: '',
   previouslyApproached: false, previousDepartment: '', previousDate: '', previousReference: '',
   visitType: 'walk_in', appointmentDate: today(), appointmentSlot: '', appointmentDuration: 5,
@@ -484,13 +485,25 @@ function Book() {
                 <Field label={t('mobile_number')} name="mobile" value={String(form.mobile)} onChange={setValue} placeholder="10-digit mobile number" type="tel" required />
                 <div className="space-y-2">
                   <Label htmlFor="taluka" className="text-sm font-semibold">{t('taluka')}</Label>
-                  <select id="taluka" name="taluka" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.taluka)} onChange={(e) => setValue('taluka', e.target.value)} data-testid="select-taluka">
+                  <select id="taluka" name="taluka" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.taluka)} onChange={(e) => {
+                    const tal = e.target.value;
+                    setValue('taluka', tal);
+                    const villages = talukaVillages[tal] || [];
+                    setValue('location', villages[0] || '');
+                  }} data-testid="select-taluka">
                     {['Baramati', 'Indapur', 'Daund', 'Shirur', 'Purandar', 'Bhor', 'Velhe', 'Maval', 'Mulshi', 'Haveli', 'Khed', 'Ambegaon', 'Junnar'].map((name) => (
                       <option key={name} value={name}>{t(name)}</option>
                     ))}
                   </select>
                 </div>
-                <Field label={t('village')} name="location" value={String(form.location)} onChange={setValue} placeholder="Where do you live?" required />
+                <div className="space-y-2">
+                  <Label htmlFor="location" className="text-sm font-semibold">{t('village')}<span className="ml-1 text-[hsl(var(--primary))]*">*</span></Label>
+                  <select id="location" name="location" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.location || (talukaVillages[String(form.taluka)]?.[0] || ''))} onChange={(e) => setValue('location', e.target.value)} data-testid="select-village" required>
+                    {(talukaVillages[String(form.taluka)] || []).map((village) => (
+                      <option key={village} value={village}>{village}</option>
+                    ))}
+                  </select>
+                </div>
                 <Field label={t('org')} name="organisation" value={String(form.organisation)} onChange={setValue} placeholder="If representing an entity" />
               </div>
 
@@ -1075,6 +1088,27 @@ function Office() {
                   <div className="mt-6 flex flex-wrap gap-2 pt-5 border-t border-[hsl(var(--border))]">
                     <Button variant={selected.data.status === 'called' ? 'outline' : 'default'} size="sm" onClick={() => act(selected.data!.id, 'call')} disabled={queueAction.isPending} data-testid="button-queue-action-call">Call Room</Button>
                     <Button variant="outline" size="sm" onClick={() => act(selected.data!.id, 'hold')} disabled={queueAction.isPending} data-testid="button-queue-action-hold">Place Hold</Button>
+                    {selected.data.priority !== 'priority' && selected.data.priority !== 'vvip' && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                        onClick={() => {
+                          const token = localStorage.getItem('zp_session_token');
+                          fetch(`${import.meta.env.VITE_API_URL || ''}/api/office/queue/${selected.data!.id}/promote`, {
+                            method: 'PATCH',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                          }).then(() => {
+                            client.invalidateQueries({ queryKey: getGetOfficeDashboardQueryKey() });
+                            client.invalidateQueries({ queryKey: getGetOfficeQueueQueryKey() });
+                            client.invalidateQueries({ queryKey: getGetOfficeVisitQueryKey(selected.data!.id) });
+                          });
+                        }}
+                        data-testid="button-queue-action-promote"
+                      >
+                        Make Priority
+                      </Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => act(selected.data!.id, 'check_in')} disabled={queueAction.isPending} data-testid="button-queue-action-check-in">Re-queue (Waiting)</Button>
                     <Button variant="outline" size="sm" onClick={() => act(selected.data!.id, 'no_show')} disabled={queueAction.isPending} className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-600" data-testid="button-queue-action-no-show">Mark No-Show</Button>
                   </div>
@@ -1564,6 +1598,23 @@ function AdminPage() {
                       <p className="font-bold text-sm">{slot.label}</p>
                       <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Capacity: {slot.capacity} · Sort Order: {slot.sortOrder} · {slot.active ? 'Active' : 'Disabled'}</p>
                     </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        const token = localStorage.getItem('zp_session_token');
+                        fetch(`${import.meta.env.VITE_API_URL || ''}/api/office/settings/slots/${slot.id}/toggle`, {
+                          method: 'PATCH',
+                          headers: { 'Authorization': `Bearer ${token}` }
+                        }).then(() => {
+                          client.invalidateQueries({ queryKey: getGetOfficeSlotsQueryKey() });
+                          client.invalidateQueries({ queryKey: getGetAvailabilityQueryKey({ date: today() }) });
+                        });
+                      }}
+                      data-testid={`button-toggle-slot-${slot.id}`}
+                    >
+                      {slot.active ? 'Lock Slot' : 'Unlock Slot'}
+                    </Button>
                     <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => handleDeleteSlot(slot.id)} disabled={deleteSlot.isPending} data-testid={`button-delete-slot-${slot.id}`}><Trash2 size={16} /></Button>
                   </div>
                 ))}
