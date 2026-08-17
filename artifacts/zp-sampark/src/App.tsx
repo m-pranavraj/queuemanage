@@ -599,21 +599,6 @@ function Book() {
                 </div>
               )}
 
-              <div>
-                <Label className="text-sm font-semibold">{t('priority_status_audited')}</Label>
-                <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                  {[{ value: 'normal', label: t('normal'), text: t('priority_normal_desc') },
-                    { value: 'priority', label: t('priority_level'), text: t('priority_level_desc') },
-                    { value: 'official', label: t('official'), text: t('priority_official_desc') },
-                    { value: 'vvip', label: t('vvip'), text: t('priority_vvip_desc') }].map((item) => (
-                    <button type="button" key={item.value} onClick={() => setValue('priority', item.value)} className={`rounded-xl border p-3 text-left transition ${form.priority === item.value ? 'border-[hsl(var(--secondary))] bg-[hsl(var(--secondary))]/8' : 'border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]'}`} data-testid={`button-priority-${item.value}`}>
-                      <span className="block text-sm font-semibold">{item.label}</span>
-                      <span className="mt-1 block text-[10px] text-[hsl(var(--muted-foreground))]">{item.text}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="flex justify-between">
                 <Button type="button" variant="outline" onClick={() => setStep(1)}>{t('prev')}</Button>
                 <Button type="button" onClick={() => setStep(3)} disabled={form.visitType === 'appointment' && !form.appointmentSlot} data-testid="button-next-confirm">{t('review_reg')} <ArrowRight size={16} /></Button>
@@ -637,7 +622,6 @@ function Book() {
                   [t('department'), t(String(form.department))],
                   [t('wizard_title'), t(String(form.category))],
                   [t('purpose'), form.purpose],
-                  [t('priority'), t(String(form.priority))],
                   [t('visit_type'), form.visitType === 'appointment' ? `${t('appointment')} · ${dateLabel(String(form.appointmentDate))}` : t('walkin')],
                   [t('duration'), form.visitType === 'appointment' ? `${form.appointmentDuration} ${t('minutes')} @ ${availability.data?.slots.find((slot) => slot.id === form.appointmentSlot)?.label ?? 'Selected slot'}` : t('walkin')],
                 ].map(([label, value]) => (
