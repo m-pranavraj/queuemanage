@@ -515,7 +515,26 @@ function Book() {
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="category" className="text-sm font-semibold">{t('wizard_title')}</Label>
-                  <select id="category" name="category" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.category)} onChange={(e) => setValue('category', e.target.value)} data-testid="select-category">
+                  <select id="category" name="category" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.category)} onChange={(e) => {
+                    const cat = e.target.value;
+                    setValue('category', cat);
+                    // Map category to a relevant default department
+                    if (cat === 'Grievance' || cat === 'Administrative Matter') {
+                      setValue('department', 'General Administration');
+                    } else if (cat === 'Government Scheme' || cat === 'Rural Development' || cat === 'SHG / Livelihood') {
+                      setValue('department', 'Rural Development');
+                    } else if (cat === 'Education') {
+                      setValue('department', 'Education');
+                    } else if (cat === 'Health') {
+                      setValue('department', 'Health');
+                    } else if (cat === 'Water / Sanitation') {
+                      setValue('department', 'Water & Sanitation');
+                    } else if (cat === 'Agriculture') {
+                      setValue('department', 'Agriculture');
+                    } else if (cat === 'Proposal / Partnership' || cat === 'Personal Appointment' || cat === 'Other') {
+                      setValue('department', 'General Administration');
+                    }
+                  }} data-testid="select-category">
                     {['Grievance', 'Government Scheme', 'Education', 'Health', 'Water / Sanitation', 'Rural Development', 'Employment / Skill Development', 'Infrastructure / Roads', 'SHG / Livelihood', 'Agriculture', 'Administrative Matter', 'Proposal / Partnership', 'Personal Appointment', 'Other'].map((cat) => (
                       <option key={cat} value={cat}>{t(cat)}</option>
                     ))}
@@ -524,9 +543,33 @@ function Book() {
                 <div className="space-y-2">
                   <Label htmlFor="department" className="text-sm font-semibold">{t('department')}</Label>
                   <select id="department" name="department" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={String(form.department)} onChange={(e) => setValue('department', e.target.value)} data-testid="select-department">
-                    {['General Administration', 'Rural Development', 'Revenue', 'Education', 'Health', 'Water & Sanitation', 'Women & Child Development', 'Agriculture', 'Finance', 'Works (Roads & Infra)'].map((dept) => (
-                      <option key={dept} value={dept}>{t(dept)}</option>
-                    ))}
+                    {(() => {
+                      const cat = String(form.category);
+                      let allowedDepts = ['General Administration', 'Rural Development', 'Revenue', 'Education', 'Health', 'Water & Sanitation', 'Women & Child Development', 'Agriculture', 'Finance', 'Works (Roads & Infra)'];
+                      
+                      // Filter down departments matching the category to avoid mismatching/repetitive dropdown selections
+                      if (cat === 'Grievance' || cat === 'Administrative Matter') {
+                        allowedDepts = ['General Administration', 'Revenue', 'Finance'];
+                      } else if (cat === 'Government Scheme' || cat === 'Rural Development' || cat === 'SHG / Livelihood' || cat === 'Employment / Skill Development') {
+                        allowedDepts = ['Rural Development', 'Women & Child Development', 'Finance'];
+                      } else if (cat === 'Education') {
+                        allowedDepts = ['Education', 'General Administration'];
+                      } else if (cat === 'Health') {
+                        allowedDepts = ['Health', 'General Administration'];
+                      } else if (cat === 'Water / Sanitation') {
+                        allowedDepts = ['Water & Sanitation', 'Works (Roads & Infra)'];
+                      } else if (cat === 'Agriculture') {
+                        allowedDepts = ['Agriculture', 'Rural Development'];
+                      } else if (cat === 'Infrastructure / Roads') {
+                        allowedDepts = ['Works (Roads & Infra)', 'Rural Development'];
+                      } else if (cat === 'Proposal / Partnership' || cat === 'Personal Appointment' || cat === 'Other') {
+                        allowedDepts = ['General Administration', 'Finance'];
+                      }
+
+                      return allowedDepts.map((dept) => (
+                        <option key={dept} value={dept}>{t(dept)}</option>
+                      ));
+                    })()}
                   </select>
                 </div>
               </div>
