@@ -57113,7 +57113,7 @@ router2.patch("/office/queue/:id/action", requireAuth(["admin", "ceo", "receptio
   res.json(UpdateQueueActionResponse.parse(queueEntry(updated)));
 });
 router2.patch("/office/queue/:id/promote", requireAuth(["admin", "ceo", "reception", "officer"]), async (req, res) => {
-  const visitId = parseInt(req.params.id, 10);
+  const visitId = parseInt(String(req.params.id), 10);
   if (isNaN(visitId)) {
     res.status(400).json({ error: "Invalid visit ID" });
     return;
@@ -57269,7 +57269,7 @@ router2.delete("/office/settings/slots/:id", requireAuth(["admin"]), async (req,
   res.sendStatus(204);
 });
 router2.patch("/office/settings/slots/:id/toggle", requireAuth(["admin", "reception", "officer"]), async (req, res) => {
-  const slotId = parseInt(req.params.id, 10);
+  const slotId = parseInt(String(req.params.id), 10);
   if (isNaN(slotId)) {
     res.status(400).json({ error: "Invalid slot ID" });
     return;
