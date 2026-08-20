@@ -56506,11 +56506,11 @@ var visitsTable = pgTable("zp_visits", {
   description: text("description").notNull(),
   previouslyApproached: boolean("previously_approached").notNull().default(false),
   previousDepartment: text("previous_department"),
-  previousDate: date("previous_date", { mode: "string" }),
+  previousDate: date("previous_date"),
   previousReference: text("previous_reference"),
   visitType: text("visit_type").notNull(),
-  visitDate: date("visit_date", { mode: "string" }).notNull(),
-  appointmentDate: date("appointment_date", { mode: "string" }),
+  visitDate: date("visit_date").notNull(),
+  appointmentDate: date("appointment_date"),
   appointmentSlot: text("appointment_slot"),
   appointmentDuration: integer("appointment_duration").notNull().default(5),
   priority: text("priority").notNull().default("normal"),
@@ -56522,7 +56522,7 @@ var visitsTable = pgTable("zp_visits", {
   referredTo: text("referred_to"),
   referenceNumber: text("reference_number"),
   notes: text("notes"),
-  followUpDate: date("follow_up_date", { mode: "string" }),
+  followUpDate: date("follow_up_date"),
   previousVisits: integer("previous_visits").notNull().default(0),
   meetingStartedAt: timestamp("meeting_started_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true })
@@ -57436,6 +57436,116 @@ async function seedDatabase() {
       }
       await db.insert(appointmentSlotsTable).values(slotsData);
       console.log("Seeding 5-minute slots completed successfully.");
+    }
+    const existingVisits = await db.select().from(visitsTable).limit(1);
+    if (existingVisits.length === 0) {
+      console.log("Seeding mock visits for testing...");
+      const todayStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).format(/* @__PURE__ */ new Date());
+      await db.insert(visitsTable).values([
+        {
+          token: "VVIP-001",
+          fullName: "MLA Satish Chandra",
+          mobile: "9876543210",
+          taluka: "Baramati",
+          location: "Malegaon",
+          organisation: "Government of Maharashtra",
+          purpose: "Rural Water Supply Project Approval",
+          category: "Proposal / Partnership",
+          department: "Water & Sanitation",
+          description: "Requesting budget clearance and administrative approval for the new Baramati canal pipeline connection.",
+          previouslyApproached: true,
+          previousDepartment: "Finance",
+          previousDate: todayStr,
+          visitType: "walk_in",
+          visitDate: todayStr,
+          priority: "vvip",
+          status: "called",
+          queuePosition: 1,
+          estimatedWait: 0
+        },
+        {
+          token: "CEO-001",
+          fullName: "Rajesh Shinde",
+          mobile: "9881234567",
+          taluka: "Haveli",
+          location: "Wagholi",
+          purpose: "Water Supply Line Repair",
+          category: "Water / Sanitation",
+          department: "Water & Sanitation",
+          description: "Wagholi main distribution line has been leaking for past 3 days causing heavy water loss.",
+          previouslyApproached: false,
+          visitType: "walk_in",
+          visitDate: todayStr,
+          priority: "priority",
+          status: "waiting",
+          queuePosition: 2,
+          estimatedWait: 15
+        },
+        {
+          token: "CEO-002",
+          fullName: "Sunita Deshmukh",
+          mobile: "9552123456",
+          taluka: "Khed",
+          location: "Chakan",
+          purpose: "Rural School Infrastructure Funds",
+          category: "Education",
+          department: "Education",
+          description: "Application for funding replacement desks and roof repairs at Chakan Primary ZP School.",
+          previouslyApproached: true,
+          previousDepartment: "Rural Development",
+          previousDate: todayStr,
+          visitType: "walk_in",
+          visitDate: todayStr,
+          priority: "normal",
+          status: "waiting",
+          queuePosition: 3,
+          estimatedWait: 20
+        },
+        {
+          token: "CEO-003",
+          fullName: "Anand Joshi",
+          mobile: "9422001122",
+          taluka: "Shirur",
+          location: "Ranjangaon",
+          purpose: "Agricultural Subsidy Query",
+          category: "Agriculture",
+          department: "Agriculture",
+          description: "Seeking clarification on delayed solar pump installation subsidies under the state scheme.",
+          previouslyApproached: false,
+          visitType: "walk_in",
+          visitDate: todayStr,
+          priority: "normal",
+          status: "waiting",
+          queuePosition: 4,
+          estimatedWait: 25
+        },
+        {
+          token: "CEO-004",
+          fullName: "Meera Kulkarni",
+          mobile: "9123456789",
+          taluka: "Purandar",
+          location: "Jejuri",
+          purpose: "Asha Worker Scheme Reimbursement",
+          category: "Health",
+          department: "Health",
+          description: "Reimbursement claims pending for village health survey supplies distribution.",
+          previouslyApproached: false,
+          visitType: "walk_in",
+          visitDate: todayStr,
+          priority: "normal",
+          status: "completed",
+          queuePosition: 0,
+          estimatedWait: 0,
+          outcome: "resolved",
+          notes: "Approved reimbursement. File sent to accounts desk."
+        }
+      ]);
+      console.log("Seeding mock visits completed successfully.");
     }
   } catch (error40) {
     console.error("Error seeding database:", error40);

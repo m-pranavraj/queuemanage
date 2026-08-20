@@ -71,7 +71,13 @@ export async function seedDatabase() {
     const existingVisits = await db.select().from(visitsTable).limit(1);
     if (existingVisits.length === 0) {
       console.log("Seeding mock visits for testing...");
-      const todayStr = new Date().toISOString().slice(0, 10);
+      // Match timezone format (en-CA with Asia/Kolkata timezone)
+      const todayStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
       
       await db.insert(visitsTable).values([
         {
