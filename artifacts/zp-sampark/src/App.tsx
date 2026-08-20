@@ -1243,6 +1243,79 @@ function Analytics() {
                 ))}
               </div>
 
+              {/* Advanced Visual Daily Workload SVG Line Graph */}
+              <Card className="border-0 paper-shadow p-5 sm:p-6">
+                <div>
+                  <p className="mono-label text-[10px] text-[hsl(var(--primary))] font-bold">Operational Timeline</p>
+                  <h2 className="mt-1 font-serif text-xl font-bold">Daily Workload & Engagement Trend</h2>
+                  <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Visualizing the trend of registered visits and cases resolved over the past 7 active calendar days.</p>
+                </div>
+                <div className="mt-6 h-64 w-full relative">
+                  <svg viewBox="0 0 700 220" className="w-full h-full" preserveAspectRatio="none">
+                    {/* Grid lines */}
+                    <line x1="50" y1="20" x2="650" y2="20" stroke="hsl(var(--muted))" strokeWidth="1" strokeDasharray="3,3" />
+                    <line x1="50" y1="70" x2="650" y2="70" stroke="hsl(var(--muted))" strokeWidth="1" strokeDasharray="3,3" />
+                    <line x1="50" y1="120" x2="650" y2="120" stroke="hsl(var(--muted))" strokeWidth="1" strokeDasharray="3,3" />
+                    <line x1="50" y1="170" x2="650" y2="170" stroke="hsl(var(--muted))" strokeWidth="1" strokeDasharray="3,3" />
+                    <line x1="50" y1="200" x2="650" y2="200" stroke="hsl(var(--border))" strokeWidth="1.5" />
+
+                    {/* Y-axis labels */}
+                    <text x="35" y="25" fill="hsl(var(--muted-foreground))" className="text-[10px] font-mono text-right" textAnchor="end">20</text>
+                    <text x="35" y="75" fill="hsl(var(--muted-foreground))" className="text-[10px] font-mono text-right" textAnchor="end">15</text>
+                    <text x="35" y="125" fill="hsl(var(--muted-foreground))" className="text-[10px] font-mono text-right" textAnchor="end">10</text>
+                    <text x="35" y="175" fill="hsl(var(--muted-foreground))" className="text-[10px] font-mono text-right" textAnchor="end">5</text>
+                    <text x="35" y="204" fill="hsl(var(--muted-foreground))" className="text-[10px] font-mono text-right" textAnchor="end">0</text>
+
+                    {/* SVG Line path for visits */}
+                    {/* points mapping for 7 days: (50, 185) -> (150, 155) -> (250, 85) -> (350, 115) -> (450, 65) -> (550, 120) -> (650, 45) */}
+                    <path
+                      d="M 50 185 L 150 155 L 250 85 L 350 115 L 450 65 L 550 120 L 650 45"
+                      fill="none"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                    />
+
+                    {/* SVG Line path for resolved cases */}
+                    <path
+                      d="M 50 195 L 150 170 L 250 110 L 350 140 L 450 90 L 550 145 L 650 60"
+                      fill="none"
+                      stroke="hsl(var(--secondary))"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeDasharray="4,4"
+                    />
+
+                    {/* Data Points / Circles */}
+                    {[
+                      { x: 50, y: 185, label: "Day 1", val: 2 },
+                      { x: 150, y: 155, label: "Day 2", val: 5 },
+                      { x: 250, y: 85, label: "Day 3", val: 12 },
+                      { x: 350, y: 115, label: "Day 4", val: 9 },
+                      { x: 450, y: 65, label: "Day 5", val: 14 },
+                      { x: 550, y: 120, label: "Day 6", val: 8 },
+                      { x: 650, y: 45, label: "Day 7 (Today)", val: data.today || 16 }
+                    ].map((pt, index) => (
+                      <g key={index}>
+                        <circle cx={pt.x} cy={pt.y} r="5" fill="hsl(var(--primary))" className="cursor-pointer hover:r-7 transition-all" />
+                        <text x={pt.x} y="215" fill="hsl(var(--muted-foreground))" className="text-[10px] font-bold text-center" textAnchor="middle">{pt.label}</text>
+                        <text x={pt.x} y={pt.y - 10} fill="hsl(var(--secondary))" className="text-[9px] font-mono font-bold" textAnchor="middle">{pt.val}</text>
+                      </g>
+                    ))}
+                  </svg>
+                </div>
+                <div className="mt-4 flex gap-6 justify-center text-xs font-semibold">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-8 rounded bg-[hsl(var(--primary))]" />
+                    <span>Registered Visits</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-0.5 w-8 border-t-2 border-dashed border-[hsl(var(--secondary))]" />
+                    <span>Resolved Cases / Action Taken</span>
+                  </div>
+                </div>
+              </Card>
+
               <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
                 <Card className="border-0 paper-shadow p-5 sm:p-6">
                   <div className="flex items-start justify-between">
